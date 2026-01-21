@@ -25,6 +25,26 @@ const activeIncidents = new Map<string, Incident>(); // serviceId -> Incident
 const serviceLastRun = new Map<string, number>(); // serviceId -> timestamp (ms)
 const serviceChecksInProgress = new Set<string>(); // serviceId
 
+function sanitizeMessage(message: string | undefined, hideTarget: boolean | undefined): string {
+    if (!message) return "";
+
+    // 1. Always redact credentials in connection strings
+    // Matches schema://user:pass@host
+    message = message.replace(/([a-zA-Z0-9+]+:\/\/[^:]+):([^@]+)@/g, '$1:*****@');
+    // Matches key=value pairs in typical DB connection strings
+    message = message.replace(/(password|pwd|user|uid)=([^;]+)/gi, '$1=*****');
+
+    if (hideTarget) {
+        // 2. Redact IPv4 addresses
+        message = message.replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, '[REDACTED_IP]');
+
+        // 3. Redact URLs
+        message = message.replace(/https?:\/\/[^\s]+/g, '[REDACTED_URL]');
+    }
+
+    return message;
+}
+
 async function loadActiveIncidents() {
     console.log("Loading active incidents...");
     const allIncidents = await getIncidents();
@@ -81,23 +101,8 @@ async function performCheck(service: Service) {
 
         const currentStatus = result.status!;
 
-        // Sanitize message if service is private about its target
-        if (service.showTarget === false && result.message) {
-            // Replace regular URL
-            result.message = result.message.replace(service.url, "[REDACTED]");
-
-            // Try to handle cases where error message might contain parts of the URL (like host only)
-            try {
-                // If it's a URL, extract hostname
-                if (service.url.startsWith("http")) {
-                    const urlObj = new URL(service.url);
-                    result.message = result.message.replace(urlObj.hostname, "[REDACTED]");
-                    result.message = result.message.replace(urlObj.host, "[REDACTED]");
-                }
-            } catch (e) {
-                // Ignore invalid URL parsing
-            }
-        }
+        // Sanitize message
+        result.message = sanitizeMessage(result.message, service.showTarget === false);
 
         const now = new Date();
 
