@@ -1,0 +1,222 @@
+import { Service, LogEntry, Incident, AppNotification } from "../types/monitoring";
+import { getServices, appendLog, getIncidents, saveIncident, saveNotification } from "../lib/storage";
+import { checkHttp, checkPing, checkPostgres, checkOracle, checkTcp } from "../lib/checker";
+import dotenv from "dotenv";
+import path from "path";
+import { differenceInMinutes } from "date-fns";
+import * as crypto from "crypto";
+import fs from "fs";
+
+// Load environment variables with priority: .env.local > .env.production > .env
+const envFiles = ["../.env.local", "../.env.production", "../.env"];
+
+for (const envFile of envFiles) {
+    const envPath = path.resolve(__dirname, envFile);
+    if (fs.existsSync(envPath)) {
+        dotenv.config({ path: envPath });
+    }
+}
+
+// Helper to wait
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// State management
+const activeIncidents = new Map<string, Incident>(); // serviceId -> Incident
+const serviceLastRun = new Map<string, number>(); // serviceId -> timestamp (ms)
+const serviceChecksInProgress = new Set<string>(); // serviceId
+
+async function loadActiveIncidents() {
+    console.log("Loading active incidents...");
+    const allIncidents = await getIncidents();
+
+    // Find incidents that don't have an endTime
+    for (const incident of allIncidents) {
+        if (!incident.endTime && incident.serviceId) {
+            // Check if we already have a newer active incident for this service
+            if (!activeIncidents.has(incident.serviceId)) {
+                activeIncidents.set(incident.serviceId, incident);
+            }
+        }
+    }
+    console.log(`Resumed ${activeIncidents.size} active incidents.`);
+}
+
+async function performCheck(service: Service) {
+    // Prevent overlapping checks for the same service
+    if (serviceChecksInProgress.has(service.id)) {
+        return;
+    }
+
+    serviceChecksInProgress.add(service.id);
+    console.log(`Checking ${service.name} (${service.type})...`);
+
+    try {
+        let result: Partial<LogEntry> = { status: "DOWN", latency: 0 };
+        try {
+            switch (service.type) {
+                case "http":
+                case "https":
+                case "http-post":
+                case "https-post":
+                    result = await checkHttp(service);
+                    break;
+                case "ping":
+                    result = await checkPing(service);
+                    break;
+                case "tcp":
+                    result = await checkTcp(service);
+                    break;
+                case "postgres":
+                    result = await checkPostgres(service);
+                    break;
+                case "oracle":
+                    result = await checkOracle(service);
+                    break;
+                default:
+                    result = { status: "DOWN", message: "Unknown type" };
+            }
+        } catch (e: any) {
+            result = { status: "DOWN", message: e.message };
+        }
+
+        const currentStatus = result.status!;
+
+        // Sanitize message if service is private about its target
+        if (service.showTarget === false && result.message) {
+            // Replace regular URL
+            result.message = result.message.replace(service.url, "[REDACTED]");
+
+            // Try to handle cases where error message might contain parts of the URL (like host only)
+            try {
+                // If it's a URL, extract hostname
+                if (service.url.startsWith("http")) {
+                    const urlObj = new URL(service.url);
+                    result.message = result.message.replace(urlObj.hostname, "[REDACTED]");
+                    result.message = result.message.replace(urlObj.host, "[REDACTED]");
+                }
+            } catch (e) {
+                // Ignore invalid URL parsing
+            }
+        }
+
+        const now = new Date();
+
+        // Incident Management
+        if (currentStatus === "DOWN") {
+            if (!activeIncidents.has(service.id)) {
+                // Start new incident
+                const newIncident: Incident = {
+                    id: crypto.randomUUID(),
+                    serviceId: service.id,
+                    startTime: now.toISOString(),
+                    status: "DOWN",
+                    description: result.message || "Service Down",
+                };
+                activeIncidents.set(service.id, newIncident);
+                await saveIncident(newIncident);
+                console.log(`[INCIDENT STARTED] ${service.name} is DOWN.`);
+
+                // Send Notification
+                const notification: AppNotification = {
+                    id: crypto.randomUUID(),
+                    type: "DOWN",
+                    message: `Service ${service.name} is DOWN: ${result.message || "Unknown error"}`,
+                    timestamp: now.toISOString(),
+                    read: false,
+                    serviceId: service.id
+                };
+                await saveNotification(notification);
+            }
+        } else if (currentStatus === "UP") {
+            if (activeIncidents.has(service.id)) {
+                // Resolve incident
+                const incident = activeIncidents.get(service.id)!;
+                incident.endTime = now.toISOString();
+                incident.duration = differenceInMinutes(now, new Date(incident.startTime));
+                incident.status = "UP";
+
+                console.log(`[DEBUG] resolving incident ${incident.id} for service ${service.name}`);
+                await saveIncident(incident);
+                activeIncidents.delete(service.id);
+                console.log(`[INCIDENT RESOLVED] ${service.name} is UP. Duration: ${incident.duration} mins.`);
+
+                // Send Notification
+                const notification: AppNotification = {
+                    id: crypto.randomUUID(),
+                    type: "UP",
+                    message: `Service ${service.name} is UP. Duration: ${incident.duration} mins.`,
+                    timestamp: now.toISOString(),
+                    read: false,
+                    serviceId: service.id
+                };
+                await saveNotification(notification);
+            }
+        }
+
+        const log: LogEntry = {
+            id: crypto.randomUUID(),
+            serviceId: service.id,
+            timestamp: now.toISOString(),
+            status: currentStatus,
+            latency: result.latency || 0,
+            statusCode: result.statusCode,
+            message: result.message,
+        };
+
+        await appendLog(log);
+        // Fixed: Removed duplicate appendLog(log) call
+
+        const statusColor = log.status === "UP" ? "\x1b[32mUP\x1b[0m" : "\x1b[31mDOWN\x1b[0m";
+        console.log(`Saved log for ${service.name}: ${statusColor} ${log.status === "DOWN" && log.message ? `(${log.message})` : ""}`);
+
+    } catch (err) {
+        console.error(`Error checking service ${service.name}:`, err);
+    } finally {
+        serviceChecksInProgress.delete(service.id);
+        serviceLastRun.set(service.id, Date.now());
+    }
+}
+
+async function monitor() {
+    console.log("Starting monitoring service...");
+    await loadActiveIncidents();
+
+    let services: Service[] = [];
+    let lastServiceLoad = 0;
+    const SERVICE_REFRESH_INTERVAL = 60000; // Reload services list every 60s
+
+    while (true) {
+        const now = Date.now();
+
+        // Refresh services list periodically
+        if (now - lastServiceLoad > SERVICE_REFRESH_INTERVAL) {
+            try {
+                // console.log("Refreshing services list...");
+                services = await getServices();
+                lastServiceLoad = now;
+            } catch (err) {
+                console.error("Failed to load services:", err);
+            }
+        }
+
+        // Check if any service needs to be run
+        for (const service of services) {
+            const lastRun = serviceLastRun.get(service.id) || 0;
+            // service.interval is in seconds, convert to ms
+            const intervalMs = (service.interval || 60) * 1000;
+
+            if (now - lastRun >= intervalMs) {
+                // Run check asynchronously - do NOT await here
+                performCheck(service);
+            }
+        }
+
+        // Small delay to prevent CPU spinning
+        await delay(1000);
+    }
+}
+
+// Run if called directly
+if (require.main === module) {
+    monitor().catch(console.error);
+}

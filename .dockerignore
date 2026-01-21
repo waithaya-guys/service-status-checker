@@ -1,0 +1,9 @@
+node_modules
+.next
+out
+build
+.git
+Dockerfile
+.dockerignore
+npm-debug.log
+.agent
