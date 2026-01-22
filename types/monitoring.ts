@@ -11,6 +11,7 @@ export interface Service {
     timeout?: number; // Milliseconds (default 5000)
     isPublic: boolean;
     showTarget?: boolean; // Whether to show URL/IP to public
+    latencyThreshold?: number; // Threshold in ms for DEGRADED status
     order?: number; // Display order
     createdAt: string;
     updatedAt: string;

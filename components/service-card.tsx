@@ -3,6 +3,7 @@
 import { Service, LogEntry } from "@/types/monitoring";
 import { Card, CardHeader, CardBody } from "@heroui/card";
 import { Chip } from "@heroui/chip";
+import { Tooltip } from "@heroui/tooltip";
 import { calculateUptime, getAverageResponseTime } from "@/lib/statistics";
 import { FaCheckCircle, FaExclamationCircle, FaArrowRight, FaGlobe, FaNetworkWired, FaAppStoreIos } from "react-icons/fa";
 import { SiPostgresql, SiOracle } from "react-icons/si";
@@ -63,6 +64,11 @@ export function ServiceCard({ service, logs, onClick }: ServiceCardProps) {
         statusIcon = <FaExclamationCircle size={14} />;
     }
 
+    let tooltipContent = activeIncident?.description || latestLog?.message || statusLabel;
+    if (status === "UP") {
+        tooltipContent = `Service Is available (${latestLog?.latency || 0}ms)`;
+    }
+
     return (
         <Card
             className="cursor-pointer hover:border-primary border-2 border-transparent transition-colors"
@@ -79,13 +85,16 @@ export function ServiceCard({ service, logs, onClick }: ServiceCardProps) {
                         <p className="text-small text-default-500 uppercase font-semibold">{service.type}</p>
                     </div>
                 </div>
-                <Chip
-                    color={statusColor}
-                    variant="flat"
-                    startContent={statusIcon}
-                >
-                    {statusLabel}
-                </Chip>
+                <Tooltip content={tooltipContent}>
+                    <Chip
+                        // className="cursor-help"
+                        color={statusColor}
+                        variant="flat"
+                        startContent={statusIcon}
+                    >
+                        {statusLabel}
+                    </Chip>
+                </Tooltip>
             </CardHeader>
             <CardBody className="pt-0">
                 <div className="flex justify-between items-end mt-2">
