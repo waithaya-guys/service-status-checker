@@ -48,7 +48,8 @@ export function ServiceDialog({ isOpen, onClose, service, logs, incidents }: Ser
     const uptime = calculateUptime(logs);
 
     // Prepare chart data (last 50 logs for better density)
-    const chartData = logs.slice(-50).map(log => ({
+    const sortedLogs = [...logs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const chartData = sortedLogs.slice(-50).map(log => ({
         time: format(new Date(log.timestamp), "HH:mm"),
         latency: log.latency,
         status: log.status
