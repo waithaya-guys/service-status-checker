@@ -8,7 +8,7 @@ import { FaCheckCircle, FaExclamationCircle, FaArrowRight, FaGlobe, FaNetworkWir
 import { SiPostgresql, SiOracle } from "react-icons/si";
 
 interface ServiceCardProps {
-    service: Service;
+    service: Service & { incidents?: any[] };
     logs: LogEntry[];
     onClick: (service: Service) => void;
 }
@@ -33,9 +33,35 @@ const getServiceIcon = (type: string) => {
 
 export function ServiceCard({ service, logs, onClick }: ServiceCardProps) {
     const latestLog = logs[logs.length - 1];
-    const isUp = latestLog?.status === "UP";
+
+    // Check for active incident first
+    const activeIncident = service.incidents?.find(i => !i.endTime);
+
+    // Status logic priority: Active Incident > Latest Log > Default UP
+    let status: "UP" | "DOWN" | "DEGRADED" = "UP";
+    if (activeIncident) {
+        status = activeIncident.status || "DOWN";
+    } else if (latestLog) {
+        status = latestLog.status;
+    }
+
     const uptime = calculateUptime(logs);
     const avgResponse = getAverageResponseTime(logs);
+
+    // Color/Label Mapping
+    let statusColor: "success" | "warning" | "danger" = "success";
+    let statusLabel = "Available";
+    let statusIcon = <FaCheckCircle size={14} />;
+
+    if (status === "DOWN") {
+        statusColor = "danger";
+        statusLabel = "Outage";
+        statusIcon = <FaExclamationCircle size={14} />;
+    } else if (status === "DEGRADED") {
+        statusColor = "warning";
+        statusLabel = "Degraded";
+        statusIcon = <FaExclamationCircle size={14} />;
+    }
 
     return (
         <Card
@@ -54,11 +80,11 @@ export function ServiceCard({ service, logs, onClick }: ServiceCardProps) {
                     </div>
                 </div>
                 <Chip
-                    color={isUp ? "success" : "danger"}
+                    color={statusColor}
                     variant="flat"
-                    startContent={isUp ? <FaCheckCircle size={14} /> : <FaExclamationCircle size={14} />}
+                    startContent={statusIcon}
                 >
-                    {isUp ? "Operational" : "Downtime"}
+                    {statusLabel}
                 </Chip>
             </CardHeader>
             <CardBody className="pt-0">
