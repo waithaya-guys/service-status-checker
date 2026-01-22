@@ -48,7 +48,8 @@ export function ServiceDialog({ isOpen, onClose, service, logs, incidents }: Ser
     const uptime = calculateUptime(logs);
 
     // Prepare chart data (last 50 logs for better density)
-    const chartData = logs.slice(-50).map(log => ({
+    const sortedLogs = [...logs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const chartData = sortedLogs.slice(-50).map(log => ({
         time: format(new Date(log.timestamp), "HH:mm"),
         latency: log.latency,
         status: log.status
@@ -72,12 +73,41 @@ export function ServiceDialog({ isOpen, onClose, service, logs, incidents }: Ser
                             <div className="flex justify-between items-center mb-4 p-4 rounded-xl bg-default-50">
                                 <div>
                                     <p className="text-tiny uppercase text-default-500 font-bold">Current Status</p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <div className={`w-3 h-3 rounded-full ${logs[logs.length - 1]?.status === "UP" ? "bg-success" : "bg-danger"} animate-pulse`} />
-                                        <span className={`text-xl font-bold ${logs[logs.length - 1]?.status === "UP" ? "text-success" : "text-danger"}`}>
-                                            {logs[logs.length - 1]?.status || "UNKNOWN"}
-                                        </span>
-                                    </div>
+                                    {(() => {
+                                        const latestLog = logs[logs.length - 1];
+                                        // Check for active incident first (logic synced with ServiceCard)
+                                        const activeIncident = incidents.find(i => i.serviceId === service.id && !i.endTime);
+
+                                        let status = "UP";
+                                        if (activeIncident) {
+                                            status = activeIncident.status || "DOWN";
+                                        } else if (latestLog) {
+                                            status = latestLog.status;
+                                        }
+
+                                        let statusColor = "bg-success";
+                                        let textColor = "text-success";
+                                        let statusLabel = "Available";
+
+                                        if (status === "DOWN") {
+                                            statusColor = "bg-danger";
+                                            textColor = "text-danger";
+                                            statusLabel = "Outage";
+                                        } else if (status === "DEGRADED") {
+                                            statusColor = "bg-warning";
+                                            textColor = "text-warning";
+                                            statusLabel = "Degraded";
+                                        }
+
+                                        return (
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <div className={`w-3 h-3 rounded-full ${statusColor} animate-pulse`} />
+                                                <span className={`text-xl font-bold ${textColor}`}>
+                                                    {statusLabel}
+                                                </span>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                                 <div className="text-right">
                                     <p className="text-tiny uppercase text-default-500 font-bold">Uptime (30d)</p>

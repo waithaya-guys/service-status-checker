@@ -46,11 +46,29 @@ export function DashboardClient({ services: initialServices, logs: initialLogs, 
 
     return (
         <>
+            <div className="flex justify-end gap-4 mb-0 text-small">
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-success"></div>
+                    <span>Available</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-warning"></div>
+                    <span>Degraded</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-danger"></div>
+                    <span>Outage</span>
+                </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {services.map((service) => (
                     <ServiceCard
                         key={service.id}
-                        service={service}
+                        service={{
+                            ...service,
+                            incidents: incidents.filter(i => i.serviceId === service.id)
+                        }}
                         logs={logs.filter((log) => log.serviceId === service.id)}
                         onClick={handleCardClick}
                     />

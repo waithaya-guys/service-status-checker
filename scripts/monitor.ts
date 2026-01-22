@@ -99,7 +99,18 @@ async function performCheck(service: Service) {
             result = { status: "DOWN", message: e.message };
         }
 
-        const currentStatus = result.status!;
+        let currentStatus = result.status!;
+
+        // Handle High Latency Degradation
+        if (currentStatus === "UP" && service.latencyThreshold && service.latencyThreshold > 0) {
+            if ((result.latency || 0) > service.latencyThreshold) {
+                result.status = "DEGRADED";
+                currentStatus = "DEGRADED"; // Update local variable so log reflects this
+                result.message = result.message
+                    ? `${result.message} (High Latency: ${result.latency}ms)`
+                    : `High Latency: ${result.latency}ms > ${service.latencyThreshold}ms`;
+            }
+        }
 
         // Sanitize message
         result.message = sanitizeMessage(result.message, service.showTarget === false);
@@ -132,13 +143,13 @@ async function performCheck(service: Service) {
                 };
                 await saveNotification(notification);
             }
-        } else if (currentStatus === "UP") {
+        } else if (currentStatus === "UP" || currentStatus === "DEGRADED") {
             if (activeIncidents.has(service.id)) {
                 // Resolve incident
                 const incident = activeIncidents.get(service.id)!;
                 incident.endTime = now.toISOString();
                 incident.duration = differenceInMinutes(now, new Date(incident.startTime));
-                incident.status = "UP";
+                incident.status = "UP"; // Close incident as UP even if currently degraded (issues are separate)
 
                 console.log(`[DEBUG] resolving incident ${incident.id} for service ${service.name}`);
                 await saveIncident(incident);
@@ -171,7 +182,10 @@ async function performCheck(service: Service) {
         await appendLog(log);
         // Fixed: Removed duplicate appendLog(log) call
 
-        const statusColor = log.status === "UP" ? "\x1b[32mUP\x1b[0m" : "\x1b[31mDOWN\x1b[0m";
+        let statusColor = "\x1b[31mDOWN\x1b[0m"; // Red
+        if (log.status === "UP") statusColor = "\x1b[32mUP\x1b[0m"; // Green
+        else if (log.status === "DEGRADED") statusColor = "\x1b[33mDEGRADED\x1b[0m"; // Yellow
+
         console.log(`Saved log for ${service.name}: ${statusColor} ${log.status === "DOWN" && log.message ? `(${log.message})` : ""}`);
 
     } catch (err) {

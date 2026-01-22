@@ -42,6 +42,7 @@ export function ServiceForm({ initialData, onSubmit, onCancel }: ServiceFormProp
         timeout: initialData?.timeout || 5000,
         isPublic: initialData?.isPublic ?? true,
         showTarget: initialData?.showTarget ?? false,
+        latencyThreshold: initialData?.latencyThreshold || 0,
     });
 
     const [isTesting, setIsTesting] = useState(false);
@@ -145,22 +146,35 @@ export function ServiceForm({ initialData, onSubmit, onCancel }: ServiceFormProp
                 />
             )}
 
-            <Input
-                label="Check Interval (seconds)"
-                type="number"
-                value={formData.interval?.toString()}
-                onValueChange={(val) => setFormData({ ...formData, interval: parseInt(val) || 60 })}
-                isRequired
-                min={15}
-            />
+            <div className="flex gap-4">
+                <Input
+                    className="flex-1"
+                    label="Check Interval (seconds)"
+                    type="number"
+                    value={formData.interval?.toString()}
+                    onValueChange={(val) => setFormData({ ...formData, interval: parseInt(val) || 60 })}
+                    isRequired
+                    min={15}
+                />
+
+                <Input
+                    className="flex-1"
+                    label="Timeout (ms)"
+                    type="number"
+                    value={formData.timeout?.toString()}
+                    onValueChange={(val) => setFormData({ ...formData, timeout: parseInt(val) || 5000 })}
+                    isRequired
+                    min={1}
+                />
+            </div>
 
             <Input
-                label="Timeout (ms)"
+                label="Latency Threshold (ms)"
+                description="If response time > threshold, service will be marked as Degraded (0 to disable)"
                 type="number"
-                value={formData.timeout?.toString()}
-                onValueChange={(val) => setFormData({ ...formData, timeout: parseInt(val) || 5000 })}
-                isRequired
-                min={1}
+                value={formData.latencyThreshold?.toString()}
+                onValueChange={(val) => setFormData({ ...formData, latencyThreshold: parseInt(val) || 0 })}
+                min={0}
             />
 
             <Checkbox
