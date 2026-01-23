@@ -6,7 +6,7 @@ export default async function AdminPage() {
     const incidents = await getIncidents();
 
     return (
-        <div className="py-8">
+        <div className="py-2">
             <AdminClient services={services} incidents={incidents} />
         </div>
     );
