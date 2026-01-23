@@ -48,7 +48,21 @@ export function ServiceDialog({ isOpen, onClose, service, logs, incidents }: Ser
     const uptime = calculateUptime(logs);
 
     // Prepare chart data (last 50 logs for better density)
+    // 1. Sort logs by timestamp ascending
     const sortedLogs = [...logs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    // // 2. Group by minute to remove duplicates (keep latest per minute)
+    // const activeLogMap = new Map<string, typeof logs[0]>();
+    // sortedLogs.forEach(log => {
+    //     const timeKey = format(new Date(log.timestamp), "yyyy-MM-dd HH:mm");
+    //     // Always overwrite with later log for the same minute
+    //     activeLogMap.set(timeKey, log);
+    // });
+
+    // // 3. Convert back to array
+    // const aggregatedLogs = Array.from(activeLogMap.values());
+
+    // 4. Slice last 50 points
     const chartData = sortedLogs.slice(-50).map(log => ({
         time: format(new Date(log.timestamp), "HH:mm"),
         latency: log.latency,

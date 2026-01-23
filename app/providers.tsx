@@ -15,6 +15,7 @@ export interface ProvidersProps {
 }
 
 import { LayoutProvider } from "@/components/layout-context";
+import { SessionAuth } from "@/components/session-auth";
 
 declare module "@react-types/shared" {
   interface RouterConfig {
@@ -29,14 +30,16 @@ export function Providers({ children, themeProps }: ProvidersProps) {
 
   return (
     <SessionProvider>
-      <HeroUIProvider navigate={router.push}>
-        <NextThemesProvider {...themeProps}>
-          <LayoutProvider>
-            {children}
-            <ToastProvider />
-          </LayoutProvider>
-        </NextThemesProvider>
-      </HeroUIProvider>
+      <SessionAuth>
+        <HeroUIProvider navigate={router.push}>
+          <NextThemesProvider {...themeProps}>
+            <LayoutProvider>
+              {children}
+              <ToastProvider />
+            </LayoutProvider>
+          </NextThemesProvider>
+        </HeroUIProvider>
+      </SessionAuth>
     </SessionProvider>
   );
 }
