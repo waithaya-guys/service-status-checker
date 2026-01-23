@@ -7,6 +7,9 @@ import { Modal, ModalContent, ModalHeader, ModalBody } from "@heroui/modal";
 import { useState, useEffect } from "react";
 import { FaEdit, FaTrash, FaPlus, FaGripVertical } from "react-icons/fa";
 import { useRouter } from "next/navigation";
+import { Tabs, Tab } from "@heroui/tabs";
+import { IncidentsManager } from "./incidents-manager";
+import { Incident } from "@/types/monitoring";
 
 // Dnd Kit Imports
 import {
@@ -29,6 +32,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 interface AdminClientProps {
     services: Service[];
+    incidents: Incident[];
 }
 
 // Sortable Row Component
@@ -88,7 +92,7 @@ function SortableServiceRow({ service, index, onEdit, onDelete }: {
     );
 }
 
-export function AdminClient({ services: initialServices }: AdminClientProps) {
+export function AdminClient({ services: initialServices, incidents: initialIncidents }: AdminClientProps) {
     const router = useRouter();
     const [services, setServices] = useState(initialServices);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -174,56 +178,70 @@ export function AdminClient({ services: initialServices }: AdminClientProps) {
     return (
         <div className="flex flex-col gap-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold">Manage Services</h2>
-                <Button color="primary" startContent={<FaPlus />} onPress={handleOpenAdd}>
-                    Add Service
-                </Button>
+                <h2 className="text-2xl font-bold">Admin Dashboard</h2>
             </div>
 
-            <div className="border border-default-200 rounded-xl overflow-hidden shadow-sm bg-content1">
-                <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                >
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-default-100 text-default-500 text-xs uppercase font-semibold">
-                            <tr>
-                                <th className="p-3 w-12"></th>
-                                <th className="p-3">Name</th>
-                                <th className="p-3">Type</th>
-                                <th className="p-3">Target</th>
-                                <th className="p-3">Interval</th>
-                                <th className="p-3">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-default-200">
-                            <SortableContext
-                                items={services.map(s => s.id)}
-                                strategy={verticalListSortingStrategy}
+            <Tabs aria-label="Admin Options">
+                <Tab key="services" title="Services">
+                    <div className="flex flex-col gap-6 pt-4">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-lg font-semibold">Manage Services</h3>
+                            <Button color="primary" startContent={<FaPlus />} onPress={handleOpenAdd}>
+                                Add Service
+                            </Button>
+                        </div>
+
+                        <div className="border border-default-200 rounded-xl overflow-hidden shadow-sm bg-content1">
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleDragEnd}
                             >
-                                {services.map((service, index) => (
-                                    <SortableServiceRow
-                                        key={service.id}
-                                        service={service}
-                                        index={index}
-                                        onEdit={handleOpenEdit}
-                                        onDelete={handleDelete}
-                                    />
-                                ))}
-                            </SortableContext>
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-default-100 text-default-500 text-xs uppercase font-semibold">
+                                        <tr>
+                                            <th className="p-3 w-12"></th>
+                                            <th className="p-3">Name</th>
+                                            <th className="p-3">Type</th>
+                                            <th className="p-3">Target</th>
+                                            <th className="p-3">Interval</th>
+                                            <th className="p-3">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-default-200">
+                                        <SortableContext
+                                            items={services.map(s => s.id)}
+                                            strategy={verticalListSortingStrategy}
+                                        >
+                                            {services.map((service, index) => (
+                                                <SortableServiceRow
+                                                    key={service.id}
+                                                    service={service}
+                                                    index={index}
+                                                    onEdit={handleOpenEdit}
+                                                    onDelete={handleDelete}
+                                                />
+                                            ))}
+                                        </SortableContext>
 
-                            {services.length === 0 && (
-                                <tr>
-                                    <td colSpan={6} className="p-8 text-center text-default-400">
-                                        No services found. Click "Add Service" to create one.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </DndContext>
-            </div>
+                                        {services.length === 0 && (
+                                            <tr>
+                                                <td colSpan={6} className="p-8 text-center text-default-400">
+                                                    No services found. Click "Add Service" to create one.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </DndContext>
+                        </div>
+                    </div>
+                </Tab>
+
+                <Tab key="incidents" title="Incidents">
+                    <IncidentsManager incidents={initialIncidents} services={services} />
+                </Tab>
+            </Tabs>
 
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="2xl" backdrop="blur">
                 <ModalContent>
