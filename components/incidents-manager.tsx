@@ -7,6 +7,7 @@ import { Button } from "@heroui/button";
 import { Input, Textarea } from "@heroui/input";
 import { Select, SelectItem } from "@heroui/select";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
+import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from "@heroui/table";
 import { FaEdit } from "react-icons/fa";
 import { Chip } from "@heroui/chip";
 
@@ -81,43 +82,41 @@ export function IncidentsManager({ incidents: initialIncidents, services }: Inci
             <h2 className="text-2xl font-bold">Incident History</h2>
 
             <div className="border border-default-200 rounded-xl overflow-hidden shadow-sm bg-content1">
-                <table className="w-full text-left border-collapse">
-                    <thead className="bg-default-100 text-default-500 text-xs uppercase font-semibold">
-                        <tr>
-                            <th className="p-3">Service</th>
-                            <th className="p-3">Starts At</th>
-                            <th className="p-3">Duration</th>
-                            <th className="p-3">Status</th>
-                            <th className="p-3">Cause / Description</th>
-                            <th className="p-3">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-default-200">
+                <Table aria-label="Incident History">
+                    <TableHeader>
+                        <TableColumn>Service</TableColumn>
+                        <TableColumn>Starts At</TableColumn>
+                        <TableColumn>Duration</TableColumn>
+                        <TableColumn>Status</TableColumn>
+                        <TableColumn>Cause / Description</TableColumn>
+                        <TableColumn>Actions</TableColumn>
+                    </TableHeader>
+                    <TableBody emptyContent={"No incidents found."}>
                         {incidents.map((incident) => (
-                            <tr key={incident.id} className="hover:bg-default-100 transition-colors">
-                                <td className="p-3 font-medium">{getServiceName(incident.serviceId)}</td>
-                                <td className="p-3 text-sm">{format(new Date(incident.startTime), "dd MMM yyyy HH:mm")}</td>
-                                <td className="p-3 text-sm">{incident.duration ? `${incident.duration}m` : "Ongoing"}</td>
-                                <td className="p-3">
+                            <TableRow key={incident.id} className="hover:bg-default-100 transition-colors">
+                                <TableCell className="font-medium">{getServiceName(incident.serviceId)}</TableCell>
+                                <TableCell className="text-sm">{format(new Date(incident.startTime), "dd MMM yyyy HH:mm")}</TableCell>
+                                <TableCell className="text-sm">{incident.duration ? `${incident.duration}m` : "Ongoing"}</TableCell>
+                                <TableCell>
                                     <Chip size="sm" color={statusColorMap[incident.status] || "default"} variant="flat">
                                         {incident.status}
                                     </Chip>
-                                </td>
-                                <td className="p-3 text-sm max-w-xs truncate">
+                                </TableCell>
+                                <TableCell className="text-sm max-w-xs truncate">
                                     <div className="flex flex-col">
                                         {incident.cause && <span className="font-semibold text-primary">{incident.cause}</span>}
                                         <span className="text-default-500 truncate">{incident.description}</span>
                                     </div>
-                                </td>
-                                <td className="p-3">
+                                </TableCell>
+                                <TableCell>
                                     <Button isIconOnly size="sm" variant="light" onPress={() => handleEdit(incident)}>
                                         <FaEdit />
                                     </Button>
-                                </td>
-                            </tr>
+                                </TableCell>
+                            </TableRow>
                         ))}
-                    </tbody>
-                </table>
+                    </TableBody>
+                </Table>
             </div>
 
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="lg" backdrop="blur">

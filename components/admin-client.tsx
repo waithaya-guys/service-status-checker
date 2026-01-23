@@ -69,7 +69,7 @@ function SortableServiceRow({ service, index, onEdit, onDelete }: {
                 <div
                     {...attributes}
                     {...listeners}
-                    className="cursor-move p-2 text-default-400 hover:text-default-600 touch-none"
+                    className="cursor-move p-2 text-default-400 hover:text-default-600 touch-none w-fit"
                 >
                     <FaGripVertical />
                 </div>
@@ -223,7 +223,6 @@ export function AdminClient({ services: initialServices, incidents: initialIncid
                                                 />
                                             ))}
                                         </SortableContext>
-
                                         {services.length === 0 && (
                                             <tr>
                                                 <td colSpan={6} className="p-8 text-center text-default-400">
