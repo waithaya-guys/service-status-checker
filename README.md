@@ -1,43 +1,66 @@
 # Service Status Checker
 
-A comprehensive service monitoring dashboard built with Next.js and HeroUI. This application monitors the status of your services and visualizes the data.
+A comprehensive service monitoring dashboard built with **Next.js 15** and **HeroUI v2**. This application monitors the status of your services in real-time, visualizes performance data, and manages incidents efficiently.
 
-## Technologies Used
+## ✨ Features
+
+- **Real-Time Monitoring**: Automatically checks service health via HTTP/HTTPS, Ping, TCP, and Database connections.
+- **Interactive Dashboard**:
+  - **Status Overview**: Instant visual feedback on service health (UP, DEGRADED, DOWN).
+  - **Latency Charts**: Historical latency trends with interactive tooltips.
+  - **Mini Graphs**: Sparkline charts on service cards for quick trend analysis.
+- **Admin Management**:
+  - **Drag-and-Drop Ordering**: Easily reorder services on the dashboard.
+  - **Service Configuration**: specialized settings for interval, timeout, and expected payloads.
+  - **Incident Management**: Track outages, root causes, and resolution times.
+- **Smart Notifications**:
+  - **Responsive Toasts**: Alerts for service status changes (UP/DOWN) and system actions.
+  - **Push Updates**: Auto-polling for real-time status updates without page refresh.
+- **Robust Security**:
+  - **Authentication**: Secure access via NextAuth.js.
+  - **Data Privacy**: Automatic redaction of sensitive info (IPs, credentials) in logs.
+
+## 🛠 Technology Stack
 
 - **Framework**: [Next.js 15](https://nextjs.org/) (App Router)
 - **Language**: [TypeScript](https://www.typescriptlang.org/)
 - **UI Components**: [HeroUI v2](https://heroui.com/)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 - **Authentication**: [NextAuth.js](https://next-auth.js.org/)
-- **Database Clients**: 
-  - `pg` (PostgreSQL)
-  - `oracledb` (Oracle Database)
+- **Database/Storage**:
+  - `JSON` (Lightweight persistence)
+  - Supports `pg` (PostgreSQL) & `oracledb` drivers
 - **Visualization**: [Recharts](https://recharts.org/)
-- **Utilities**:
-  - `ping` (Network monitoring)
-  - `concurrently` (Task runner)
-  - `date-fns` (Date utility)
+- **Utilities**: `dnd-kit` (Drag & Drop), `date-fns`, `concurrently`
 
-## How to Use
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
 
 ### Installation
 
-1.  Clone the repository.
-2.  Install dependencies:
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/your-username/service-status.git
+    cd service-status
+    ```
 
+2.  Install dependencies:
     ```bash
     npm install
     ```
 
-### Configuration
+3.  Configure Environment:
+    Create a `.env` file based on `.env.example`:
+    ```env
+    NEXTAUTH_SECRET=your-secret-key
+    NEXTAUTH_URL=http://localhost:3000
+    ```
 
-Ensure you have the necessary environment variables set up in a `.env` file (e.g., database credentials, next-auth secret).
-
-### Running the Application
-
-This project consists of a valid Next.js web application and a background monitoring script.
-
-**Development:**
+### Running Locally
 
 Start both the web application and the monitoring script concurrently:
 
@@ -45,24 +68,29 @@ Start both the web application and the monitoring script concurrently:
 npm run dev
 ```
 
-This will run:
-*   Web App: `http://localhost:3000`
-*   Monitor Script: `scripts/monitor.ts`
+- **Web App**: `http://localhost:3000`
+- **Background Monitor**: Runs in the same terminal, checking services every `N` seconds.
 
-**Production:**
+### Building for Production
 
-1.  Build the Next.js application:
-
+1.  Build the application:
     ```bash
     npm run build
     ```
 
-2.  Start the production server and monitor:
-
+2.  Start the production server:
     ```bash
-    npm run prod
+    npm run start
     ```
 
-## License
+## 📱 Mobile Support
+
+- **Responsive Design**: Optimized for Desktop, Tablet, and Mobile.
+- **Mobile-First UX**:
+  - Scrollable tables and modals.
+  - Adjusted toast positioning (Top-Center on mobile).
+  - Touch-friendly controls.
+
+## 📄 License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
