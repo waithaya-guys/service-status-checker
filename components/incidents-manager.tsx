@@ -10,6 +10,7 @@ import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@herou
 import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from "@heroui/table";
 import { FaEdit } from "react-icons/fa";
 import { Chip } from "@heroui/chip";
+import { addToast } from "@heroui/toast";
 
 interface IncidentsManagerProps {
     incidents: Incident[];
@@ -58,8 +59,19 @@ export function IncidentsManager({ incidents: initialIncidents, services }: Inci
                     prev.map((inc) => (inc.id === updatedIncident.id ? updatedIncident : inc))
                 );
                 setIsModalOpen(false);
+                addToast({
+                    title: "Success",
+                    description: "Incident updated successfully",
+                    color: "success",
+                    variant: "flat"
+                });
             } else {
-                alert("Failed to update incident");
+                addToast({
+                    title: "Error",
+                    description: "Failed to update incident",
+                    color: "danger",
+                    variant: "flat"
+                });
             }
         } catch (error) {
             console.error("Error updating incident:", error);

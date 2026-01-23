@@ -16,6 +16,8 @@ export interface ProvidersProps {
 
 import { LayoutProvider } from "@/components/layout-context";
 import { SessionAuth } from "@/components/session-auth";
+import { NotificationHandler } from "@/components/notification-handler";
+import { ToastLayout } from "@/components/toast-layout";
 
 declare module "@react-types/shared" {
   interface RouterConfig {
@@ -35,7 +37,8 @@ export function Providers({ children, themeProps }: ProvidersProps) {
           <NextThemesProvider {...themeProps}>
             <LayoutProvider>
               {children}
-              <ToastProvider />
+              <ToastLayout />
+              <NotificationHandler />
             </LayoutProvider>
           </NextThemesProvider>
         </HeroUIProvider>
