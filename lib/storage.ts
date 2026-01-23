@@ -60,8 +60,8 @@ export async function getLogs(): Promise<LogEntry[]> {
     const logs: LogEntry[] = [];
     const today = new Date();
 
-    // Read last 30 days
-    for (let i = 0; i < 30; i++) {
+    // Read last 30 days (Oldest to Newest)
+    for (let i = 29; i >= 0; i--) {
         const date = subDays(today, i);
         const fileName = `Log_${format(date, "yyyy-MM-dd")}.json`;
         const filePath = path.join(LOGS_DIR, fileName);
@@ -74,22 +74,52 @@ export async function getLogs(): Promise<LogEntry[]> {
     return logs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 }
 
-export async function appendLog(log: LogEntry): Promise<void> {
-    await ensureDir(); // Ensure main data dir
-    try {
-        await fs.access(LOGS_DIR);
-    } catch {
-        await fs.mkdir(LOGS_DIR, { recursive: true });
+class Mutex {
+    private mutex = Promise.resolve();
+
+    lock(): Promise<() => void> {
+        let unlockNext: () => void = () => { };
+        const willUnlock = new Promise<void>(resolve => {
+            unlockNext = resolve;
+        });
+
+        const willAcquire = this.mutex.then(() => unlockNext);
+
+        this.mutex = this.mutex.then(() => willUnlock);
+
+        return willAcquire;
     }
 
-    const today = new Date();
-    const fileName = `Log_${format(today, "yyyy-MM-dd")}.json`;
-    const filePath = path.join(LOGS_DIR, fileName);
+    async dispatch<T>(fn: (() => T | PromiseLike<T>)): Promise<T> {
+        const unlock = await this.lock();
+        try {
+            return await Promise.resolve(fn());
+        } finally {
+            unlock();
+        }
+    }
+}
 
-    const logs = await readJson<LogEntry[]>(filePath, []);
-    logs.push(log);
+const fileLock = new Mutex();
 
-    await writeJson(filePath, logs);
+export async function appendLog(log: LogEntry): Promise<void> {
+    await fileLock.dispatch(async () => {
+        await ensureDir(); // Ensure main data dir
+        try {
+            await fs.access(LOGS_DIR);
+        } catch {
+            await fs.mkdir(LOGS_DIR, { recursive: true });
+        }
+
+        const today = new Date();
+        const fileName = `Log_${format(today, "yyyy-MM-dd")}.json`;
+        const filePath = path.join(LOGS_DIR, fileName);
+
+        const logs = await readJson<LogEntry[]>(filePath, []);
+        logs.push(log);
+
+        await writeJson(filePath, logs);
+    });
 }
 
 // Incidents

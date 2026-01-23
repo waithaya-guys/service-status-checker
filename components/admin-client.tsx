@@ -3,10 +3,14 @@
 import { Service } from "@/types/monitoring";
 import { ServiceForm } from "@/components/service-form";
 import { Button } from "@heroui/button";
-import { Modal, ModalContent, ModalHeader, ModalBody } from "@heroui/modal";
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 import { useState, useEffect } from "react";
 import { FaEdit, FaTrash, FaPlus, FaGripVertical } from "react-icons/fa";
 import { useRouter } from "next/navigation";
+import { Tabs, Tab } from "@heroui/tabs";
+import { IncidentsManager } from "./incidents-manager";
+import { Incident } from "@/types/monitoring";
+import { addToast } from "@heroui/toast";
 
 // Dnd Kit Imports
 import {
@@ -29,6 +33,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 interface AdminClientProps {
     services: Service[];
+    incidents: Incident[];
 }
 
 // Sortable Row Component
@@ -65,7 +70,7 @@ function SortableServiceRow({ service, index, onEdit, onDelete }: {
                 <div
                     {...attributes}
                     {...listeners}
-                    className="cursor-move p-2 text-default-400 hover:text-default-600 touch-none"
+                    className="cursor-move p-2 text-default-400 hover:text-default-600 touch-none w-fit"
                 >
                     <FaGripVertical />
                 </div>
@@ -88,11 +93,13 @@ function SortableServiceRow({ service, index, onEdit, onDelete }: {
     );
 }
 
-export function AdminClient({ services: initialServices }: AdminClientProps) {
+export function AdminClient({ services: initialServices, incidents: initialIncidents }: AdminClientProps) {
     const router = useRouter();
     const [services, setServices] = useState(initialServices);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingService, setEditingService] = useState<Service | null>(null);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [serviceToDelete, setServiceToDelete] = useState<string | null>(null);
 
     // Sync state with props if they change (e.g. from server refresh)
     useEffect(() => {
@@ -121,29 +128,72 @@ export function AdminClient({ services: initialServices }: AdminClientProps) {
         setIsModalOpen(true);
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm("Are you sure you want to delete this service?")) return;
+    const handleDelete = (id: string) => {
+        setServiceToDelete(id);
+        setIsDeleteModalOpen(true);
+    };
 
-        await fetch(`/api/services`, {
-            method: 'DELETE',
-            body: JSON.stringify({ id }),
-            headers: { 'Content-Type': 'application/json' }
-        });
-        router.refresh();
+    const confirmDelete = async () => {
+        if (!serviceToDelete) return;
+
+        try {
+            await fetch(`/api/services`, {
+                method: 'DELETE',
+                body: JSON.stringify({ id: serviceToDelete }),
+                headers: { 'Content-Type': 'application/json' }
+            });
+            addToast({
+                title: "Service Deleted",
+                description: "The service has been successfully removed.",
+                color: "success",
+                variant: "flat"
+            });
+            router.refresh();
+        } catch (error) {
+            addToast({
+                title: "Error",
+                description: "Failed to delete service.",
+                color: "danger",
+                variant: "flat"
+            });
+        } finally {
+            setIsDeleteModalOpen(false);
+            setServiceToDelete(null);
+        }
     };
 
     const handleSubmit = async (data: any) => {
         const method = editingService ? 'PUT' : 'POST';
         const body = editingService ? { ...data, id: editingService.id } : data;
 
-        await fetch('/api/services', {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
+        try {
+            const res = await fetch('/api/services', {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
 
-        setIsModalOpen(false);
-        router.refresh();
+            if (res.ok) {
+                addToast({
+                    title: editingService ? "Service Updated" : "Service Created",
+                    description: editingService ? "Service details have been updated." : "New service has been added.",
+                    color: "success",
+                    variant: "flat"
+                });
+            } else {
+                throw new Error("Failed to save");
+            }
+
+            setIsModalOpen(false);
+            router.refresh();
+        } catch (error) {
+            addToast({
+                title: "Error",
+                description: "Failed to save service details.",
+                color: "danger",
+                variant: "flat"
+            });
+        }
     };
 
     const handleDragEnd = async (event: DragEndEvent) => {
@@ -174,58 +224,76 @@ export function AdminClient({ services: initialServices }: AdminClientProps) {
     return (
         <div className="flex flex-col gap-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold">Manage Services</h2>
-                <Button color="primary" startContent={<FaPlus />} onPress={handleOpenAdd}>
-                    Add Service
-                </Button>
+                <h2 className="text-2xl font-bold">Admin Dashboard</h2>
             </div>
 
-            <div className="border border-default-200 rounded-xl overflow-hidden shadow-sm bg-content1">
-                <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                >
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-default-100 text-default-500 text-xs uppercase font-semibold">
-                            <tr>
-                                <th className="p-3 w-12"></th>
-                                <th className="p-3">Name</th>
-                                <th className="p-3">Type</th>
-                                <th className="p-3">Target</th>
-                                <th className="p-3">Interval</th>
-                                <th className="p-3">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-default-200">
-                            <SortableContext
-                                items={services.map(s => s.id)}
-                                strategy={verticalListSortingStrategy}
+            <Tabs aria-label="Admin Options">
+                <Tab key="services" title="Services">
+                    <div className="flex flex-col gap-6 pt-4">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-lg font-semibold">Manage Services</h3>
+                            <Button color="primary" startContent={<FaPlus />} onPress={handleOpenAdd}>
+                                Add Service
+                            </Button>
+                        </div>
+
+                        <div className="border border-default-200 rounded-xl overflow-x-auto shadow-sm bg-content1">
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleDragEnd}
                             >
-                                {services.map((service, index) => (
-                                    <SortableServiceRow
-                                        key={service.id}
-                                        service={service}
-                                        index={index}
-                                        onEdit={handleOpenEdit}
-                                        onDelete={handleDelete}
-                                    />
-                                ))}
-                            </SortableContext>
+                                <table className="w-full text-left border-collapse min-w-[600px]">
+                                    <thead className="bg-default-100 text-default-500 text-xs uppercase font-semibold">
+                                        <tr>
+                                            <th className="p-3 w-12"></th>
+                                            <th className="p-3">Name</th>
+                                            <th className="p-3">Type</th>
+                                            <th className="p-3">Target</th>
+                                            <th className="p-3">Interval</th>
+                                            <th className="p-3">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-default-200">
+                                        <SortableContext
+                                            items={services.map(s => s.id)}
+                                            strategy={verticalListSortingStrategy}
+                                        >
+                                            {services.map((service, index) => (
+                                                <SortableServiceRow
+                                                    key={service.id}
+                                                    service={service}
+                                                    index={index}
+                                                    onEdit={handleOpenEdit}
+                                                    onDelete={handleDelete}
+                                                />
+                                            ))}
+                                        </SortableContext>
+                                        {services.length === 0 && (
+                                            <tr>
+                                                <td colSpan={6} className="p-8 text-center text-default-400">
+                                                    No services found. Click "Add Service" to create one.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </DndContext>
+                        </div>
+                    </div>
+                </Tab>
 
-                            {services.length === 0 && (
-                                <tr>
-                                    <td colSpan={6} className="p-8 text-center text-default-400">
-                                        No services found. Click "Add Service" to create one.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </DndContext>
-            </div>
+                <Tab key="incidents" title="Incidents">
+                    <IncidentsManager incidents={initialIncidents} services={services} />
+                </Tab>
+            </Tabs>
 
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="2xl" backdrop="blur">
+            <Modal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                size="2xl"
+                backdrop="blur"
+            >
                 <ModalContent>
                     {(onClose) => (
                         <>
@@ -237,6 +305,32 @@ export function AdminClient({ services: initialServices }: AdminClientProps) {
                                     onCancel={onClose}
                                 />
                             </ModalBody>
+                        </>
+                    )}
+                </ModalContent>
+            </Modal>
+
+            <Modal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                size="sm"
+                backdrop="blur"
+            >
+                <ModalContent>
+                    {(onClose) => (
+                        <>
+                            <ModalHeader>Confirm Deletion</ModalHeader>
+                            <ModalBody>
+                                <p>Are you sure you want to delete this service? This action cannot be undone.</p>
+                            </ModalBody>
+                            <ModalFooter>
+                                <Button variant="light" onPress={onClose}>
+                                    Cancel
+                                </Button>
+                                <Button color="danger" onPress={confirmDelete}>
+                                    Delete
+                                </Button>
+                            </ModalFooter>
                         </>
                     )}
                 </ModalContent>

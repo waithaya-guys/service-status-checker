@@ -7,6 +7,7 @@ import { Tooltip } from "@heroui/tooltip";
 import { calculateUptime, getAverageResponseTime } from "@/lib/statistics";
 import { FaCheckCircle, FaExclamationCircle, FaArrowRight, FaGlobe, FaNetworkWired, FaAppStoreIos } from "react-icons/fa";
 import { SiPostgresql, SiOracle } from "react-icons/si";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
 
 interface ServiceCardProps {
     service: Service & { incidents?: any[] };
@@ -109,8 +110,32 @@ export function ServiceCard({ service, logs, onClick }: ServiceCardProps) {
                         <p className="text-xl font-semibold text-right">{avgResponse}ms</p>
                     </div>
                 </div>
-                <div className="flex justify-end mt-4 text-primary text-small items-center gap-1 group-hover:gap-2 transition-all">
-                    Details <FaArrowRight />
+                <div className="flex justify-between items-end mt-4">
+                    {/* Mini Sparkline Graph */}
+                    <div className="w-full h-10">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={logs.slice(-20)}>
+                                <defs>
+                                    <linearGradient id={`colorLatency-${service.id}`} x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor={status === "UP" ? "#17c964" : "#f5a524"} stopOpacity={0.8} />
+                                        <stop offset="95%" stopColor={status === "UP" ? "#17c964" : "#f5a524"} stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <Area
+                                    type="monotone"
+                                    dataKey="latency"
+                                    stroke={status === "UP" ? "#17c964" : "#f5a524"}
+                                    fillOpacity={1}
+                                    fill={`url(#colorLatency-${service.id})`}
+                                    strokeWidth={2}
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    <div className="flex text-primary text-small items-center gap-1 group-hover:gap-2 transition-all">
+                        Details <FaArrowRight />
+                    </div>
                 </div>
             </CardBody>
         </Card>

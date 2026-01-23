@@ -36,6 +36,7 @@ export interface Incident {
     endTime?: string;
     status: ServiceStatus;
     description: string;
+    cause?: string; // Root cause or explanation
     duration?: number; // Duration in minutes
 }
 
