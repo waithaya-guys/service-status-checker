@@ -83,6 +83,29 @@ npm run dev
     npm run start
     ```
 
+## 📖 User Guide
+
+### 1. 📊 Dashboard Overview
+- **Service Cards**: Displays the real-time status, uptime percentage, and a mini-graph of recent performance.
+- **Status Indicators**:
+  - 🟢 **UP**: Service is healthy and responding normally.
+  - 🟡 **DEGRADED**: Service is slow (high latency) or experiencing minor issues.
+  - 🔴 **DOWN**: Service is unreachable or has a critical failure.
+
+### 2. 🛡️ Admin Actions
+Access the admin panel at `/admin` (Default credentials should be configured in your `.env`).
+
+#### Manage Services
+- **Add Service**: Click the **"+ Add Service"** button. Choose the monitor type (HTTP, Ping, TCP, DB) and endpoint.
+- **Edit Service**: Click the **Edit (✏️)** button on any table row.
+- **Delete Service**: Click the **Delete (🗑️)** button. A confirmation modal will appear.
+- **Reorder**: Drag the **Handle (⋮⋮)** on the left of any row to reorder how services appear on the main dashboard.
+
+#### Manage Incidents
+- Go to the **"Incidents"** tab.
+- You can manually update the status or add a "Root Cause" explanation to active incidents.
+- These updates are immediately reflected on the public dashboard to keep users informed.
+
 ## 📱 Mobile Support
 
 - **Responsive Design**: Optimized for Desktop, Tablet, and Mobile.
