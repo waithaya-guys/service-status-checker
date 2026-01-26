@@ -108,7 +108,7 @@ export function IncidentsManager({ incidents: initialIncidents, services }: Inci
                             <TableRow key={incident.id} className="hover:bg-default-100 transition-colors">
                                 <TableCell className="font-medium">{getServiceName(incident.serviceId)}</TableCell>
                                 <TableCell className="text-sm">{format(new Date(incident.startTime), "dd MMM yyyy HH:mm")}</TableCell>
-                                <TableCell className="text-sm">{incident.duration ? `${incident.duration}m` : "Ongoing"}</TableCell>
+                                <TableCell className="text-sm">{incident.duration !== undefined ? `${incident.duration}m` : "Ongoing"}</TableCell>
                                 <TableCell>
                                     <Chip size="sm" color={statusColorMap[incident.status] || "default"} variant="flat">
                                         {incident.status}

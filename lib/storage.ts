@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { Service, LogEntry, Incident, AppNotification } from "../types/monitoring";
+import { Service, LogEntry, Incident, AppNotification, ServiceStats } from "../types/monitoring";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const SERVICES_FILE = path.join(DATA_DIR, "services.json");
@@ -200,4 +200,55 @@ export async function saveIncidents(incidents: Incident[]): Promise<void> {
     for (const incident of incidents) {
         await saveIncident(incident);
     }
+}
+
+// Optimization Helpers
+export async function getLatestLogs(limitPerService: number = 24): Promise<LogEntry[]> {
+    // Read only today and yesterday to minimize IO
+    const logs: LogEntry[] = [];
+    const today = new Date();
+    const range = [0, 1]; // Today and Yesterday
+
+    for (const i of range) {
+        const date = subDays(today, i);
+        const fileName = `Log_${format(date, "yyyy-MM-dd")}.json`;
+        const filePath = path.join(LOGS_DIR, fileName);
+        const dayLogs = await readJson<LogEntry[]>(filePath, []);
+        logs.push(...dayLogs);
+    }
+
+    // Sort by timestamp desc
+    logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    // Group by service and take top N
+    const relevantLogs: LogEntry[] = [];
+    const services = await getServices();
+
+    for (const service of services) {
+        const serviceLogs = logs.filter(l => l.serviceId === service.id).slice(0, limitPerService);
+        relevantLogs.push(...serviceLogs);
+    }
+
+    // Return chronological order for charts
+    return relevantLogs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
+import { calculateUptime, getAverageResponseTime } from "./statistics";
+
+export async function getServiceStats(): Promise<Record<string, { uptime: number; avgLatency: number }>> {
+    const logs = await getLogs(); // Fetch full 30d history (this is cached by FS implicitly in OS or we rely on speed)
+    // Note: If IO is too heavy, we can optimize getLogs to not read content but just stream, but for now reuse getLogs is safe for invalidation.
+
+    const stats: Record<string, { uptime: number; avgLatency: number }> = {};
+    const services = await getServices();
+
+    for (const service of services) {
+        const serviceLogs = logs.filter(l => l.serviceId === service.id);
+        stats[service.id] = {
+            uptime: calculateUptime(serviceLogs),
+            avgLatency: getAverageResponseTime(serviceLogs)
+        };
+    }
+
+    return stats;
 }

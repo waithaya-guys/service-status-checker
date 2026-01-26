@@ -9,13 +9,15 @@ interface DashboardClientProps {
     services: Service[];
     logs: LogEntry[];
     incidents: Incident[];
+    stats?: Record<string, { uptime: number; avgLatency: number }>;
 }
 
-export function DashboardClient({ services: initialServices, logs: initialLogs, incidents: initialIncidents }: DashboardClientProps) {
+export function DashboardClient({ services: initialServices, logs: initialLogs, incidents: initialIncidents, stats: initialStats = {} }: DashboardClientProps) {
     const [services, setServices] = useState<Service[]>(initialServices);
     const [logs, setLogs] = useState<LogEntry[]>(initialLogs);
     const [incidents, setIncidents] = useState<Incident[]>(initialIncidents);
     const [selectedService, setSelectedService] = useState<Service | null>(null);
+    const [stats, setStats] = useState<Record<string, { uptime: number; avgLatency: number }>>(initialStats);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -26,6 +28,7 @@ export function DashboardClient({ services: initialServices, logs: initialLogs, 
                     setServices(data.services);
                     setLogs(data.logs);
                     setIncidents(data.incidents);
+                    setStats(data.stats);
                 }
             } catch (error) {
                 console.error("Failed to fetch updates:", error);
@@ -70,6 +73,7 @@ export function DashboardClient({ services: initialServices, logs: initialLogs, 
                             incidents: incidents.filter(i => i.serviceId === service.id)
                         }}
                         logs={logs.filter((log) => log.serviceId === service.id)}
+                        stats={stats[service.id]}
                         onClick={handleCardClick}
                     />
                 ))}
@@ -82,8 +86,7 @@ export function DashboardClient({ services: initialServices, logs: initialLogs, 
                 isOpen={!!selectedService}
                 onClose={handleClose}
                 service={selectedService}
-                logs={selectedService ? logs.filter((l) => l.serviceId === selectedService.id) : []}
-                incidents={selectedService ? incidents.filter(i => i.serviceId === selectedService.id) : []}
+                initialIncidents={selectedService ? incidents.filter(i => i.serviceId === selectedService.id) : []}
             />
         </>
     );

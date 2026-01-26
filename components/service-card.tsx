@@ -12,6 +12,7 @@ import { AreaChart, Area, ResponsiveContainer } from "recharts";
 interface ServiceCardProps {
     service: Service & { incidents?: any[] };
     logs: LogEntry[];
+    stats?: { uptime: number; avgLatency: number };
     onClick: (service: Service) => void;
 }
 
@@ -33,7 +34,7 @@ const getServiceIcon = (type: string) => {
     }
 };
 
-export function ServiceCard({ service, logs, onClick }: ServiceCardProps) {
+export function ServiceCard({ service, logs, stats, onClick }: ServiceCardProps) {
     const latestLog = logs[logs.length - 1];
 
     // Check for active incident first
@@ -47,8 +48,9 @@ export function ServiceCard({ service, logs, onClick }: ServiceCardProps) {
         status = latestLog.status;
     }
 
-    const uptime = calculateUptime(logs);
-    const avgResponse = getAverageResponseTime(logs);
+    // Use server-side stats if available, otherwise fallback/default
+    const uptime = stats?.uptime ?? 100;
+    const avgResponse = stats?.avgLatency ?? 0;
 
     // Color/Label Mapping
     let statusColor: "success" | "warning" | "danger" = "success";
@@ -112,7 +114,7 @@ export function ServiceCard({ service, logs, onClick }: ServiceCardProps) {
                 </div>
                 <div className="flex justify-between items-end mt-4">
                     {/* Mini Sparkline Graph */}
-                    <div className="w-full h-10">
+                    <div className="w-full h-12">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={logs.slice(-20)}>
                                 <defs>
@@ -132,10 +134,10 @@ export function ServiceCard({ service, logs, onClick }: ServiceCardProps) {
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
-
+                    {/* 
                     <div className="flex text-primary text-small items-center gap-1 group-hover:gap-2 transition-all">
                         Details <FaArrowRight />
-                    </div>
+                    </div> */}
                 </div>
             </CardBody>
         </Card>
