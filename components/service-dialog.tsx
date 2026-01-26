@@ -1,4 +1,5 @@
 import { Service, LogEntry, Incident } from "@/types/monitoring";
+import { useState, useEffect } from "react";
 import {
     Modal,
     ModalContent,
@@ -15,15 +16,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import { format, differenceInMinutes, parseISO } from "date-fns";
 import { useTheme } from "next-themes";
 
-interface ServiceDialogProps {
-    isOpen: boolean;
-    onClose: () => void;
-    service: Service | null;
-    logs: LogEntry[];
-    incidents: Incident[];
-}
-
-const CustomTooltip = ({ active, payload, label, theme }: TooltipProps<number, string> & { theme: string | undefined }) => {
+const CustomTooltip = ({ active, payload, label, theme }: any) => {
     if (active && payload && payload.length) {
         return (
             <div className={`p-3 rounded-lg shadow-lg border ${theme === 'dark' ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-white border-zinc-200 text-black'}`}>
@@ -38,32 +31,50 @@ const CustomTooltip = ({ active, payload, label, theme }: TooltipProps<number, s
     return null;
 };
 
-export function ServiceDialog({ isOpen, onClose, service, logs, incidents }: ServiceDialogProps) {
+interface ServiceDialogProps {
+    isOpen: boolean;
+    onClose: () => void;
+    service: Service | null;
+    stats?: { uptime: number; avgLatency: number }; // Use stats for header if needed, but we re-calc for chart? No, chart needs full logs.
+    initialIncidents?: Incident[]; // Pass initial known incidents
+}
+
+export function ServiceDialog({ isOpen, onClose, service, initialIncidents = [] }: ServiceDialogProps) {
     const { theme, resolvedTheme } = useTheme();
     const isDark = resolvedTheme === "dark";
 
+    const [fullLogs, setFullLogs] = useState<LogEntry[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Fetch full logs when dialog opens
+    useEffect(() => {
+        if (isOpen && service) {
+            setIsLoading(true);
+            fetch(`/api/logs?serviceId=${service.id}`)
+                .then(res => res.json())
+                .then(data => {
+                    setFullLogs(data);
+                })
+                .catch(err => console.error("Failed to fetch history:", err))
+                .finally(() => setIsLoading(false));
+        } else {
+            setFullLogs([]);
+        }
+    }, [isOpen, service]);
+
     if (!service) return null;
+
+    const logs = fullLogs;
+    const incidents = initialIncidents.filter(i => i.serviceId === service.id);
 
     const timeline = getStatusTimeline(logs);
     const uptime = calculateUptime(logs);
 
-    // Prepare chart data (last 50 logs for better density)
-    // 1. Sort logs by timestamp ascending
+    // Prepare chart data (Last 24 hours or appropriate range from full logs)
     const sortedLogs = [...logs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-    // // 2. Group by minute to remove duplicates (keep latest per minute)
-    // const activeLogMap = new Map<string, typeof logs[0]>();
-    // sortedLogs.forEach(log => {
-    //     const timeKey = format(new Date(log.timestamp), "yyyy-MM-dd HH:mm");
-    //     // Always overwrite with later log for the same minute
-    //     activeLogMap.set(timeKey, log);
-    // });
-
-    // // 3. Convert back to array
-    // const aggregatedLogs = Array.from(activeLogMap.values());
-
-    // 4. Slice last 50 points
-    const chartData = sortedLogs.slice(-50).map(log => ({
+    // Slice last 50 points or fit to available data
+    const chartData = sortedLogs.slice(-100).map(log => ({
         time: format(new Date(log.timestamp), "HH:mm"),
         latency: log.latency,
         status: log.status
@@ -131,7 +142,13 @@ export function ServiceDialog({ isOpen, onClose, service, logs, incidents }: Ser
 
                             <div className="mb-6">
                                 <h4 className="text-small font-bold mb-2 text-default-600">Status History</h4>
-                                <StatusTimeline timeline={timeline} />
+                                {isLoading ? (
+                                    <div className="flex justify-center p-8">
+                                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                                    </div>
+                                ) : (
+                                    <StatusTimeline timeline={timeline} />
+                                )}
                             </div>
 
                             <div className="h-[280px] w-full bg-default-50 rounded-xl p-4 border border-default-100">

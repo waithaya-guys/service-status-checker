@@ -48,3 +48,9 @@ export interface AppNotification {
     read: boolean;
     serviceId?: string;
 }
+
+export interface ServiceStats {
+    serviceId: string;
+    uptime: number;
+    avgLatency: number;
+}
