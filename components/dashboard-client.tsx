@@ -9,14 +9,15 @@ interface DashboardClientProps {
     services: Service[];
     logs: LogEntry[];
     incidents: Incident[];
+    stats?: Record<string, { uptime: number; avgLatency: number }>;
 }
 
-export function DashboardClient({ services: initialServices, logs: initialLogs, incidents: initialIncidents }: DashboardClientProps) {
+export function DashboardClient({ services: initialServices, logs: initialLogs, incidents: initialIncidents, stats: initialStats = {} }: DashboardClientProps) {
     const [services, setServices] = useState<Service[]>(initialServices);
     const [logs, setLogs] = useState<LogEntry[]>(initialLogs);
     const [incidents, setIncidents] = useState<Incident[]>(initialIncidents);
     const [selectedService, setSelectedService] = useState<Service | null>(null);
-    const [stats, setStats] = useState<Record<string, { uptime: number; avgLatency: number }>>({});
+    const [stats, setStats] = useState<Record<string, { uptime: number; avgLatency: number }>>(initialStats);
 
     useEffect(() => {
         const fetchData = async () => {

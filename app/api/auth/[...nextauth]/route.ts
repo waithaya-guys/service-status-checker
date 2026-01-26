@@ -98,7 +98,6 @@ export const authOptions: NextAuthOptions = {
             }
 
             // Access token has expired, try to update it
-            console.log("Access Token Expired, Refreshing...");
             return refreshAccessToken(token);
         },
         async session({ session, token }) {

@@ -46,7 +46,6 @@ function sanitizeMessage(message: string | undefined, hideTarget: boolean | unde
 }
 
 async function loadActiveIncidents() {
-    console.log("Loading active incidents...");
     const allIncidents = await getIncidents();
 
     // Find incidents that don't have an endTime
@@ -58,7 +57,6 @@ async function loadActiveIncidents() {
             }
         }
     }
-    console.log(`Resumed ${activeIncidents.size} active incidents.`);
 }
 
 async function performCheck(service: Service) {

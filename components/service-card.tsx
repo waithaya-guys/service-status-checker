@@ -114,7 +114,7 @@ export function ServiceCard({ service, logs, stats, onClick }: ServiceCardProps)
                 </div>
                 <div className="flex justify-between items-end mt-4">
                     {/* Mini Sparkline Graph */}
-                    <div className="w-full h-10">
+                    <div className="w-full h-12">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={logs.slice(-20)}>
                                 <defs>
