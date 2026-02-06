@@ -42,7 +42,10 @@ export function ServiceForm({ initialData, onSubmit, onCancel }: ServiceFormProp
         timeout: initialData?.timeout || 5000,
         isPublic: initialData?.isPublic ?? true,
         showTarget: initialData?.showTarget ?? false,
+        allowUnauthorized: initialData?.allowUnauthorized ?? false,
         latencyThreshold: initialData?.latencyThreshold || 0,
+        authType: initialData?.authType || "none",
+        authToken: initialData?.authToken || "",
     });
 
     const [isTesting, setIsTesting] = useState(false);
@@ -145,6 +148,39 @@ export function ServiceForm({ initialData, onSubmit, onCancel }: ServiceFormProp
                     onValueChange={(val) => setFormData({ ...formData, payload: val })}
                 />
             )}
+
+            {(formData.type && ['http', 'http-post', 'https', 'https-post'].includes(formData.type) && (
+                <div className="flex gap-4">
+                    <Select
+                        className="flex-1"
+                        label="Authentication Type"
+                        selectedKeys={formData.authType ? [formData.authType] : ["none"]}
+                        onChange={(e) => setFormData({ ...formData, authType: e.target.value as "none" | "bearer" })}
+                    >
+                        <SelectItem key="none">None</SelectItem>
+                        <SelectItem key="bearer">Bearer Token</SelectItem>
+                    </Select>
+
+                    {formData.authType === 'bearer' && (
+                        <Input
+                            className="flex-1"
+                            label="Auth Token"
+                            placeholder="e.g. eyJhbGciOiJIUzI1Ni..."
+                            value={formData.authToken}
+                            onValueChange={(val) => setFormData({ ...formData, authToken: val })}
+                        />
+                    )}
+                </div>
+            ))}
+
+            {(formData.type && ['http', 'http-post', 'https', 'https-post'].includes(formData.type) && (
+                <Checkbox
+                    isSelected={formData.allowUnauthorized}
+                    onValueChange={(val) => setFormData({ ...formData, allowUnauthorized: val })}
+                >
+                    Treat 401 (Unauthorized) as UP
+                </Checkbox>
+            ))}
 
             <div className="flex gap-4">
                 <Input

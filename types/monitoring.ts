@@ -9,6 +9,9 @@ export interface Service {
     payload?: string; // Body for POST requests
     interval: number; // Seconds
     timeout?: number; // Milliseconds (default 5000)
+    authType?: "none" | "bearer"; // Authentication Type
+    authToken?: string; // Bearer Token or other auth token
+    allowUnauthorized?: boolean; // Treat 401 as UP
     isPublic: boolean;
     showTarget?: boolean; // Whether to show URL/IP to public
     latencyThreshold?: number; // Threshold in ms for DEGRADED status

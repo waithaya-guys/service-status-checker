@@ -19,26 +19,51 @@ export async function checkHttp(service: Service): Promise<Partial<LogEntry>> {
     const start = Date.now();
     try {
         let response;
+        const config: any = { timeout: service.timeout || 5000 };
+
+        // Add Authentication Headers
+        if (service.authType === 'bearer' && service.authToken) {
+            config.headers = {
+                ...config.headers,
+                'Authorization': `Bearer ${service.authToken}`
+            };
+        }
+
         if (service.type === 'http-post' || service.type === 'https-post') {
             const payload = service.payload ? JSON.parse(service.payload) : {};
-            response = await axios.post(service.url, payload, { timeout: service.timeout || 5000 });
+            response = await axios.post(service.url, payload, config);
         } else {
-            response = await axios.get(service.url, { timeout: service.timeout || 5000 });
+            response = await axios.get(service.url, config);
         }
 
         const latency = Date.now() - start;
+
+        let status: "UP" | "DOWN" = "DOWN";
+        if (response.status >= 200 && response.status < 300) {
+            status = "UP";
+        } else if (service.allowUnauthorized && response.status === 401) {
+            status = "UP";
+        }
+
         return {
-            status: response.status >= 200 && response.status < 300 ? "UP" : "DOWN",
+            status,
             latency,
             statusCode: response.status,
             message: response.statusText,
         };
     } catch (error: any) {
-        // ... catch block ...
+        // Handle specific status codes that might be thrown as errors by axios
+        const status = error.response?.status || 0;
+        let serviceStatus: "UP" | "DOWN" = "DOWN";
+
+        if (service.allowUnauthorized && status === 401) {
+            serviceStatus = "UP";
+        }
+
         return {
-            status: "DOWN",
+            status: serviceStatus,
             latency: Date.now() - start,
-            statusCode: error.response?.status || 0,
+            statusCode: status,
             message: error.message,
         };
     }
