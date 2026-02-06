@@ -49,8 +49,17 @@ export interface AppNotification {
     serviceId?: string;
 }
 
+export interface DailyStats {
+    date: string; // YYYY-MM-DD
+    up: number;
+    down: number;
+    degraded: number;
+    totalLatency: number;
+    count: number;
+}
+
 export interface ServiceStats {
-    serviceId: string;
-    uptime: number;
-    avgLatency: number;
+    [serviceId: string]: {
+        days: Record<string, DailyStats>;
+    }
 }

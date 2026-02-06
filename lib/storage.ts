@@ -6,6 +6,7 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const SERVICES_FILE = path.join(DATA_DIR, "services.json");
 const LOGS_FILE = path.join(DATA_DIR, "logs.json");
 const INCIDENTS_FILE = path.join(DATA_DIR, "incidents.json");
+const STATS_FILE = path.join(DATA_DIR, "stats.json");
 
 async function ensureDir() {
     try {
@@ -56,7 +57,8 @@ const LOGS_DIR = path.join(DATA_DIR, "logs");
 
 import { format, subDays } from "date-fns";
 
-export async function getLogs(): Promise<LogEntry[]> {
+export async function getLogsDangerously(): Promise<LogEntry[]> {
+    console.warn("getLogsDangerously called! This is a heavy operation.");
     const logs: LogEntry[] = [];
     const today = new Date();
 
@@ -72,6 +74,29 @@ export async function getLogs(): Promise<LogEntry[]> {
 
     // Sort logs by timestamp just in case (optional, but good for merging)
     return logs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
+export async function getRecentLogs(hours: number = 24): Promise<LogEntry[]> {
+    const logs: LogEntry[] = [];
+    const today = new Date();
+    // Calculate how many days we need to look back based on hours
+    // e.g. 25 hours = today + yesterday
+    const daysToLookBack = Math.ceil(hours / 24);
+
+    for (let i = daysToLookBack; i >= 0; i--) {
+        const date = subDays(today, i);
+        const fileName = `Log_${format(date, "yyyy-MM-dd")}.json`;
+        const filePath = path.join(LOGS_DIR, fileName);
+
+        const dayLogs = await readJson<LogEntry[]>(filePath, []);
+        logs.push(...dayLogs);
+    }
+
+    // Sort and filter strictly by time if needed, but for now date-file granularity is okay-ish to avoid complexity
+    // but better to filter strict time to save bandwidth
+    const cutOff = new Date(Date.now() - hours * 60 * 60 * 1000);
+    return logs.filter(l => new Date(l.timestamp) >= cutOff)
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 }
 
 class Mutex {
@@ -235,20 +260,55 @@ export async function getLatestLogs(limitPerService: number = 24): Promise<LogEn
 
 import { calculateUptime, getAverageResponseTime } from "./statistics";
 
-export async function getServiceStats(): Promise<Record<string, { uptime: number; avgLatency: number }>> {
-    const logs = await getLogs(); // Fetch full 30d history (this is cached by FS implicitly in OS or we rely on speed)
-    // Note: If IO is too heavy, we can optimize getLogs to not read content but just stream, but for now reuse getLogs is safe for invalidation.
+// Statistics
+export async function getStats(): Promise<ServiceStats> {
+    return await readJson<ServiceStats>(STATS_FILE, {});
+}
 
-    const stats: Record<string, { uptime: number; avgLatency: number }> = {};
+export async function saveStats(stats: ServiceStats): Promise<void> {
+    await ensureDir();
+    await writeJson(STATS_FILE, stats);
+}
+
+export async function getServiceStats(): Promise<Record<string, { uptime: number; avgLatency: number }>> {
+    const stats = await getStats();
+    const result: Record<string, { uptime: number; avgLatency: number }> = {};
     const services = await getServices();
 
-    for (const service of services) {
-        const serviceLogs = logs.filter(l => l.serviceId === service.id);
-        stats[service.id] = {
-            uptime: calculateUptime(serviceLogs),
-            avgLatency: getAverageResponseTime(serviceLogs)
-        };
+    // Loop through 30 days
+    const now = new Date();
+    const daysToCheck: string[] = [];
+    for (let i = 0; i < 30; i++) {
+        daysToCheck.push(format(subDays(now, i), "yyyy-MM-dd"));
     }
 
-    return stats;
+    for (const service of services) {
+        const serviceStats = stats[service.id];
+        if (!serviceStats || !serviceStats.days) {
+            result[service.id] = { uptime: 100, avgLatency: 0 };
+            continue;
+        }
+
+        let totalUp = 0;
+        let totalChecks = 0;
+        let totalLatency = 0;
+        let latencyCount = 0;
+
+        for (const date of daysToCheck) {
+            const dayStat = serviceStats.days[date];
+            if (dayStat) {
+                totalUp += dayStat.up;
+                totalChecks += dayStat.count;
+                totalLatency += dayStat.totalLatency;
+                latencyCount += dayStat.count; // Assuming every check has latency, otherwise track separately
+            }
+        }
+
+        const uptime = totalChecks > 0 ? (totalUp / totalChecks) * 100 : 100;
+        const avgLatency = latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0;
+
+        result[service.id] = { uptime, avgLatency };
+    }
+
+    return result;
 }
