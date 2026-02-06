@@ -21,7 +21,7 @@ export function calculateUptime(logs: LogEntry[], days = 30): number {
     if (relevantLogs.length === 0) return 100;
 
     const totalChecks = relevantLogs.length;
-    const upChecks = relevantLogs.filter((log) => log.status === "UP").length;
+    const upChecks = relevantLogs.filter((log) => log.status === "UP" || log.status === "DEGRADED").length;
 
     return (upChecks / totalChecks) * 100;
 }
