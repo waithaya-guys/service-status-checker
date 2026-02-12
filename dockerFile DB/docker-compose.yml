@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:18  # เวอร์ชัน
+    container_name: PostgreSQL_db
+    restart: always
+    environment:
+      POSTGRES_USER: admin        # ชื่อ User
+      POSTGRES_PASSWORD: 1234 # รหัสผ่าน
+      POSTGRES_DB: services_status     # ชื่อ Database เริ่มต้น
+    ports:
+      - "5432:5432"                # เชื่อม Port เครื่องเราเข้ากับ Container
+    volumes:
+      - postgres_data:/var/lib/postgresql # เก็บข้อมูลไว้ในเครื่อง (ลบ Container ข้อมูลไม่หาย)
+
+volumes:
+  postgres_data:
