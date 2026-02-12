@@ -100,6 +100,8 @@ export function AdminClient({ services: initialServices, incidents: initialIncid
     const [editingService, setEditingService] = useState<Service | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [serviceToDelete, setServiceToDelete] = useState<string | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Sync state with props if they change (e.g. from server refresh)
     useEffect(() => {
@@ -135,6 +137,7 @@ export function AdminClient({ services: initialServices, incidents: initialIncid
 
     const confirmDelete = async () => {
         if (!serviceToDelete) return;
+        setIsDeleting(true);
 
         try {
             await fetch(`/api/services`, {
@@ -159,10 +162,12 @@ export function AdminClient({ services: initialServices, incidents: initialIncid
         } finally {
             setIsDeleteModalOpen(false);
             setServiceToDelete(null);
+            setIsDeleting(false);
         }
     };
 
     const handleSubmit = async (data: any) => {
+        setIsSaving(true);
         const method = editingService ? 'PUT' : 'POST';
         const body = editingService ? { ...data, id: editingService.id } : data;
 
@@ -193,6 +198,8 @@ export function AdminClient({ services: initialServices, incidents: initialIncid
                 color: "danger",
                 variant: "flat"
             });
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -303,6 +310,7 @@ export function AdminClient({ services: initialServices, incidents: initialIncid
                                     initialData={editingService}
                                     onSubmit={handleSubmit}
                                     onCancel={onClose}
+                                    isLoading={isSaving}
                                 />
                             </ModalBody>
                         </>
@@ -327,7 +335,7 @@ export function AdminClient({ services: initialServices, incidents: initialIncid
                                 <Button variant="light" onPress={onClose}>
                                     Cancel
                                 </Button>
-                                <Button color="danger" onPress={confirmDelete}>
+                                <Button color="danger" onPress={confirmDelete} isLoading={isDeleting}>
                                     Delete
                                 </Button>
                             </ModalFooter>

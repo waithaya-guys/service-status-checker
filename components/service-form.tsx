@@ -13,6 +13,7 @@ interface ServiceFormProps {
     initialData?: Service | null;
     onSubmit: (data: Omit<Service, "id" | "createdAt" | "updatedAt">) => void;
     onCancel: () => void;
+    isLoading?: boolean;
 }
 
 const MONITOR_TYPES: { key: MonitorType; label: string }[] = [
@@ -24,7 +25,7 @@ const MONITOR_TYPES: { key: MonitorType; label: string }[] = [
     { key: "oracle", label: "Oracle Database" },
 ];
 
-export function ServiceForm({ initialData, onSubmit, onCancel }: ServiceFormProps) {
+export function ServiceForm({ initialData, onSubmit, onCancel, isLoading }: ServiceFormProps) {
     // Helper to map legacy types to new consolidated types
     const getInitialType = (type?: MonitorType): MonitorType => {
         if (type === 'https') return 'http';
@@ -228,10 +229,10 @@ export function ServiceForm({ initialData, onSubmit, onCancel }: ServiceFormProp
             </Checkbox>
 
             <div className="flex justify-end gap-2 mt-4">
-                <Button variant="flat" color="danger" onPress={onCancel}>
+                <Button variant="flat" color="danger" onPress={onCancel} isDisabled={isLoading}>
                     Cancel
                 </Button>
-                <Button color="primary" type="submit">
+                <Button color="primary" type="submit" isLoading={isLoading}>
                     {initialData ? "Update Service" : "Add Service"}
                 </Button>
             </div>

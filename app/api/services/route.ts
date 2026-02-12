@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServices, saveServices } from "@/lib/storage";
+import { getServices, saveServices, deleteService } from "@/lib/storage";
 import { Service } from "@/types/monitoring";
 
 export async function GET() {
@@ -50,9 +50,26 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-    const { id } = await req.json();
-    let services = await getServices();
-    services = services.filter(s => s.id !== id);
-    await saveServices(services);
-    return NextResponse.json({ success: true });
+    // Check if ID is in body or query params
+    // Frontend seems to send body { id } based on previous code
+    try {
+        const body = await req.json();
+        const { id } = body;
+
+        if (!id) {
+            // Fallback to query param if body is empty (standard REST practice)
+            const url = new URL(req.url);
+            const queryId = url.searchParams.get("id");
+            if (queryId) {
+                await deleteService(queryId);
+                return NextResponse.json({ success: true });
+            }
+            return NextResponse.json({ error: "Service ID is required" }, { status: 400 });
+        }
+
+        await deleteService(id);
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        return NextResponse.json({ error: "Failed to delete service" }, { status: 500 });
+    }
 }

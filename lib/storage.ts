@@ -76,6 +76,12 @@ export async function saveServices(services: Service[]): Promise<void> {
     }
 }
 
+export async function deleteService(id: string): Promise<void> {
+    await query(`
+        DELETE FROM services WHERE id = $1
+    `, [id]);
+}
+
 // Logs
 export async function getLogsDangerously(): Promise<LogEntry[]> {
     // Limit to last 1000 logs to avoid crashing

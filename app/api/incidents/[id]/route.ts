@@ -3,14 +3,14 @@ import { getIncidents, saveIncident } from "@/lib/storage";
 import { Incident } from "@/types/monitoring";
 
 interface RouteParams {
-    params: {
+    params: Promise<{
         id: string;
-    };
+    }>;
 }
 
 export async function PUT(request: Request, { params }: RouteParams) {
     try {
-        const { id } = params;
+        const { id } = await params;
         const body = await request.json();
         const { description, cause, status, endTime } = body;
 
