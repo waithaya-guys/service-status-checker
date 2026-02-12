@@ -21,6 +21,7 @@ export function IncidentsManager({ incidents: initialIncidents, services }: Inci
     const [incidents, setIncidents] = useState(initialIncidents);
     const [editingIncident, setEditingIncident] = useState<Incident | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState<{
@@ -41,6 +42,7 @@ export function IncidentsManager({ incidents: initialIncidents, services }: Inci
 
     const handleSave = async () => {
         if (!editingIncident) return;
+        setIsSaving(true);
 
         try {
             const res = await fetch(`/api/incidents/${editingIncident.id}`, {
@@ -76,6 +78,8 @@ export function IncidentsManager({ incidents: initialIncidents, services }: Inci
         } catch (error) {
             console.error("Error updating incident:", error);
             alert("Error updating incident");
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -162,10 +166,10 @@ export function IncidentsManager({ incidents: initialIncidents, services }: Inci
                                 />
                             </ModalBody>
                             <ModalFooter>
-                                <Button color="danger" variant="light" onPress={onClose}>
+                                <Button color="danger" variant="light" onPress={onClose} isDisabled={isSaving}>
                                     Cancel
                                 </Button>
-                                <Button color="primary" onPress={handleSave}>
+                                <Button color="primary" onPress={handleSave} isLoading={isSaving}>
                                     Save Changes
                                 </Button>
                             </ModalFooter>

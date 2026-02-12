@@ -1,5 +1,6 @@
 import { Service, LogEntry, Incident, AppNotification } from "../types/monitoring";
-import { getServices, appendLog, getIncidents, saveIncident, saveNotification } from "../lib/storage";
+import { getServices, appendLog, getIncidents, saveIncident, saveNotification, updateDailyStat } from "../lib/storage";
+import { format } from "date-fns";
 import { checkHttp, checkPing, checkPostgres, checkOracle, checkTcp } from "../lib/checker";
 import dotenv from "dotenv";
 import path from "path";
@@ -178,7 +179,23 @@ async function performCheck(service: Service) {
         };
 
         await appendLog(log);
-        // Fixed: Removed duplicate appendLog(log) call
+
+        // Update Daily Stats
+        try {
+            const todayDate = format(now, "yyyy-MM-dd");
+            const increment = {
+                up: currentStatus === "UP" ? 1 : 0,
+                down: currentStatus === "DOWN" ? 1 : 0,
+                degraded: currentStatus === "DEGRADED" ? 1 : 0,
+                latency: result.latency || 0,
+                count: 1
+            };
+
+            await updateDailyStat(service.id, todayDate, increment);
+
+        } catch (err) {
+            console.error("Failed to update stats:", err);
+        }
 
         let statusColor = "\x1b[31mDOWN\x1b[0m"; // Red
         if (log.status === "UP") statusColor = "\x1b[32mUP\x1b[0m"; // Green

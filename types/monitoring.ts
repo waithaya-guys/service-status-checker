@@ -9,6 +9,9 @@ export interface Service {
     payload?: string; // Body for POST requests
     interval: number; // Seconds
     timeout?: number; // Milliseconds (default 5000)
+    authType?: "none" | "bearer"; // Authentication Type
+    authToken?: string; // Bearer Token or other auth token
+    allowUnauthorized?: boolean; // Treat 401 as UP
     isPublic: boolean;
     showTarget?: boolean; // Whether to show URL/IP to public
     latencyThreshold?: number; // Threshold in ms for DEGRADED status
@@ -49,8 +52,17 @@ export interface AppNotification {
     serviceId?: string;
 }
 
+export interface DailyStats {
+    date: string; // YYYY-MM-DD
+    up: number;
+    down: number;
+    degraded: number;
+    totalLatency: number;
+    count: number;
+}
+
 export interface ServiceStats {
-    serviceId: string;
-    uptime: number;
-    avgLatency: number;
+    [serviceId: string]: {
+        days: Record<string, DailyStats>;
+    }
 }

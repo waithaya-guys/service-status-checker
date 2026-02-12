@@ -13,6 +13,7 @@ interface ServiceFormProps {
     initialData?: Service | null;
     onSubmit: (data: Omit<Service, "id" | "createdAt" | "updatedAt">) => void;
     onCancel: () => void;
+    isLoading?: boolean;
 }
 
 const MONITOR_TYPES: { key: MonitorType; label: string }[] = [
@@ -24,7 +25,7 @@ const MONITOR_TYPES: { key: MonitorType; label: string }[] = [
     { key: "oracle", label: "Oracle Database" },
 ];
 
-export function ServiceForm({ initialData, onSubmit, onCancel }: ServiceFormProps) {
+export function ServiceForm({ initialData, onSubmit, onCancel, isLoading }: ServiceFormProps) {
     // Helper to map legacy types to new consolidated types
     const getInitialType = (type?: MonitorType): MonitorType => {
         if (type === 'https') return 'http';
@@ -42,7 +43,10 @@ export function ServiceForm({ initialData, onSubmit, onCancel }: ServiceFormProp
         timeout: initialData?.timeout || 5000,
         isPublic: initialData?.isPublic ?? true,
         showTarget: initialData?.showTarget ?? false,
+        allowUnauthorized: initialData?.allowUnauthorized ?? false,
         latencyThreshold: initialData?.latencyThreshold || 0,
+        authType: initialData?.authType || "none",
+        authToken: initialData?.authToken || "",
     });
 
     const [isTesting, setIsTesting] = useState(false);
@@ -146,6 +150,39 @@ export function ServiceForm({ initialData, onSubmit, onCancel }: ServiceFormProp
                 />
             )}
 
+            {(formData.type && ['http', 'http-post', 'https', 'https-post'].includes(formData.type) && (
+                <div className="flex gap-4">
+                    <Select
+                        className="flex-1"
+                        label="Authentication Type"
+                        selectedKeys={formData.authType ? [formData.authType] : ["none"]}
+                        onChange={(e) => setFormData({ ...formData, authType: e.target.value as "none" | "bearer" })}
+                    >
+                        <SelectItem key="none">None</SelectItem>
+                        <SelectItem key="bearer">Bearer Token</SelectItem>
+                    </Select>
+
+                    {formData.authType === 'bearer' && (
+                        <Input
+                            className="flex-1"
+                            label="Auth Token"
+                            placeholder="e.g. eyJhbGciOiJIUzI1Ni..."
+                            value={formData.authToken}
+                            onValueChange={(val) => setFormData({ ...formData, authToken: val })}
+                        />
+                    )}
+                </div>
+            ))}
+
+            {(formData.type && ['http', 'http-post', 'https', 'https-post'].includes(formData.type) && (
+                <Checkbox
+                    isSelected={formData.allowUnauthorized}
+                    onValueChange={(val) => setFormData({ ...formData, allowUnauthorized: val })}
+                >
+                    Treat 401 (Unauthorized) as UP
+                </Checkbox>
+            ))}
+
             <div className="flex gap-4">
                 <Input
                     className="flex-1"
@@ -192,10 +229,10 @@ export function ServiceForm({ initialData, onSubmit, onCancel }: ServiceFormProp
             </Checkbox>
 
             <div className="flex justify-end gap-2 mt-4">
-                <Button variant="flat" color="danger" onPress={onCancel}>
+                <Button variant="flat" color="danger" onPress={onCancel} isDisabled={isLoading}>
                     Cancel
                 </Button>
-                <Button color="primary" type="submit">
+                <Button color="primary" type="submit" isLoading={isLoading}>
                     {initialData ? "Update Service" : "Add Service"}
                 </Button>
             </div>

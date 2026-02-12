@@ -98,9 +98,7 @@ export const Sidebar = () => {
                 onOpenChange={setMobileOpen}
                 placement="left"
                 backdrop="blur"
-                classNames={{
-                    base: "bg-content1",
-                }}
+                size="xs"
             >
                 <DrawerContent>
                     {(onClose) => (

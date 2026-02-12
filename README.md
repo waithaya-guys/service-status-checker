@@ -28,8 +28,9 @@ A comprehensive service monitoring dashboard built with **Next.js 15** and **Her
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 - **Authentication**: [NextAuth.js](https://next-auth.js.org/)
 - **Database/Storage**:
-  - `JSON` (Lightweight persistence)
-  - Supports `pg` (PostgreSQL) & `oracledb` drivers
+  - **PostgreSQL** (Primary Storage)
+  - `pg` driver with connection pooling
+  - Supports `oracledb` for Oracle Service checks
 - **Visualization**: [Recharts](https://recharts.org/)
 - **Utilities**: `dnd-kit` (Drag & Drop), `date-fns`, `concurrently`
 
@@ -58,6 +59,18 @@ A comprehensive service monitoring dashboard built with **Next.js 15** and **Her
     ```env
     NEXTAUTH_SECRET=your-secret-key
     NEXTAUTH_URL=http://localhost:3000
+    DATABASE_URL=postgres://user:password@host:port/dbname?options=-c%20search_path%3Duat
+    ```
+    *Note: Append `?options=-c%20search_path%3Duat` to your connection string to use the correct schema.*
+
+4.  **Database Setup**:
+    Initialize the database schema and seed default data:
+    ```bash
+    # Create tables in 'uat' schema
+    npx ts-node --project tsconfig.scripts.json scripts/init-db.ts
+
+    # (Optional) Migrate existing JSON data to DB
+    npx ts-node --project tsconfig.scripts.json scripts/seed-db.ts
     ```
 
 ### Running Locally
@@ -82,6 +95,12 @@ npm run dev
     ```bash
     npm run start
     ```
+
+### ⚙️ Configuration Notes
+
+- **Schema**: The application uses the `uat` schema by default. Ensure your `DATABASE_URL` includes `?options=-c%20search_path%3Duat`.
+- **SSL**: The application is configured to intelligently handle SSL. It disables SSL for `localhost` connections to avoid "server does not support SSL" errors during development, while enforcing it for production remote connections.
+
 
 ## 📖 User Guide
 
