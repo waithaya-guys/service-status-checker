@@ -1,226 +1,211 @@
-import fs from "fs/promises";
-import path from "path";
 import { Service, LogEntry, Incident, AppNotification, ServiceStats } from "../types/monitoring";
-
-const DATA_DIR = path.join(process.cwd(), "data");
-const SERVICES_FILE = path.join(DATA_DIR, "services.json");
-const LOGS_FILE = path.join(DATA_DIR, "logs.json");
-const INCIDENTS_FILE = path.join(DATA_DIR, "incidents.json");
-const STATS_FILE = path.join(DATA_DIR, "stats.json");
-
-async function ensureDir() {
-    try {
-        await fs.access(DATA_DIR);
-    } catch {
-        await fs.mkdir(DATA_DIR, { recursive: true });
-    }
-}
-
-async function readJson<T>(file: string, defaultValue: T): Promise<T> {
-    await ensureDir();
-    try {
-        const data = await fs.readFile(file, "utf-8");
-        return JSON.parse(data);
-    } catch (error) {
-        // If file doesn't exist, return default
-        return defaultValue;
-    }
-}
-
-async function writeJson<T>(file: string, data: T): Promise<void> {
-    await ensureDir();
-    await fs.writeFile(file, JSON.stringify(data, null, 2), "utf-8");
-}
-
+import { query } from "./db";
 import { encrypt, decrypt } from "./crypto";
+import { format, subDays } from "date-fns";
+import * as crypto from "crypto";
 
 // Services
 export async function getServices(): Promise<Service[]> {
-    const services = await readJson<Service[]>(SERVICES_FILE, []);
-    return services.map(service => ({
-        ...service,
-        url: decrypt(service.url)
+    const res = await query(`
+        SELECT * FROM services ORDER BY order_index ASC
+    `);
+
+    return res.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        description: row.description || "",
+        type: row.type,
+        url: decrypt(row.url),
+        payload: row.payload || "",
+        interval: row.interval,
+        timeout: row.timeout,
+        latencyThreshold: row.latency_threshold,
+        isPublic: row.is_public,
+        showTarget: row.show_target,
+        allowUnauthorized: row.allow_unauthorized,
+        authType: row.auth_type,
+        authToken: row.auth_token || "",
+        order: row.order_index,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
     }));
 }
 
 export async function saveServices(services: Service[]): Promise<void> {
-    const encryptedServices = services.map(service => ({
-        ...service,
-        url: encrypt(service.url)
-    }));
-    await writeJson(SERVICES_FILE, encryptedServices);
+    // This function is tricky because it usually saves the whole list.
+    // Ideally we should update individual services, but for compatibility with existing frontend/logic:
+    // We will upsert each service.
+
+    for (const service of services) {
+        await query(`
+            INSERT INTO services (id, name, description, type, url, payload, "interval", timeout, latency_threshold, is_public, show_target, allow_unauthorized, auth_type, auth_token, order_index, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                description = EXCLUDED.description,
+                type = EXCLUDED.type,
+                url = EXCLUDED.url,
+                payload = EXCLUDED.payload,
+                "interval" = EXCLUDED.interval,
+                timeout = EXCLUDED.timeout,
+                latency_threshold = EXCLUDED.latency_threshold,
+                is_public = EXCLUDED.is_public,
+                show_target = EXCLUDED.show_target,
+                allow_unauthorized = EXCLUDED.allow_unauthorized,
+                auth_type = EXCLUDED.auth_type,
+                auth_token = EXCLUDED.auth_token,
+                order_index = EXCLUDED.order_index,
+                updated_at = NOW()
+        `, [
+            service.id,
+            service.name,
+            service.description,
+            service.type,
+            encrypt(service.url), // Encrypt before saving
+            service.payload,
+            service.interval,
+            service.timeout,
+            service.latencyThreshold,
+            service.isPublic,
+            service.showTarget,
+            service.allowUnauthorized,
+            service.authType,
+            service.authToken,
+            (service as any).order // Cast to any to access 'order' property mapping to order_index
+        ]);
+    }
 }
 
 // Logs
-// Logs
-const LOGS_DIR = path.join(DATA_DIR, "logs");
-
-import { format, subDays } from "date-fns";
-
 export async function getLogsDangerously(): Promise<LogEntry[]> {
-    console.warn("getLogsDangerously called! This is a heavy operation.");
-    const logs: LogEntry[] = [];
-    const today = new Date();
+    // Limit to last 1000 logs to avoid crashing
+    const res = await query(`
+        SELECT * FROM logs ORDER BY timestamp DESC LIMIT 1000
+    `);
 
-    // Read last 30 days (Oldest to Newest)
-    for (let i = 29; i >= 0; i--) {
-        const date = subDays(today, i);
-        const fileName = `Log_${format(date, "yyyy-MM-dd")}.json`;
-        const filePath = path.join(LOGS_DIR, fileName);
-
-        const dayLogs = await readJson<LogEntry[]>(filePath, []);
-        logs.push(...dayLogs);
-    }
-
-    // Sort logs by timestamp just in case (optional, but good for merging)
-    return logs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return res.rows.map(row => ({
+        id: row.id,
+        serviceId: row.service_id,
+        timestamp: row.timestamp.toISOString(),
+        status: row.status,
+        latency: row.latency,
+        message: row.message,
+        statusCode: row.status_code
+    })).reverse(); // Return oldest to newest to match previous behavior if expected
 }
 
 export async function getRecentLogs(hours: number = 24): Promise<LogEntry[]> {
-    const logs: LogEntry[] = [];
-    const today = new Date();
-    // Calculate how many days we need to look back based on hours
-    // e.g. 25 hours = today + yesterday
-    const daysToLookBack = Math.ceil(hours / 24);
+    const res = await query(`
+        SELECT * FROM logs 
+        WHERE timestamp >= NOW() - INTERVAL '${hours} hours'
+        ORDER BY timestamp ASC
+    `);
 
-    for (let i = daysToLookBack; i >= 0; i--) {
-        const date = subDays(today, i);
-        const fileName = `Log_${format(date, "yyyy-MM-dd")}.json`;
-        const filePath = path.join(LOGS_DIR, fileName);
-
-        const dayLogs = await readJson<LogEntry[]>(filePath, []);
-        logs.push(...dayLogs);
-    }
-
-    // Sort and filter strictly by time if needed, but for now date-file granularity is okay-ish to avoid complexity
-    // but better to filter strict time to save bandwidth
-    const cutOff = new Date(Date.now() - hours * 60 * 60 * 1000);
-    return logs.filter(l => new Date(l.timestamp) >= cutOff)
-        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return res.rows.map(row => ({
+        id: row.id,
+        serviceId: row.service_id,
+        timestamp: row.timestamp.toISOString(),
+        status: row.status,
+        latency: row.latency,
+        message: row.message,
+        statusCode: row.status_code
+    }));
 }
-
-class Mutex {
-    private mutex = Promise.resolve();
-
-    lock(): Promise<() => void> {
-        let unlockNext: () => void = () => { };
-        const willUnlock = new Promise<void>(resolve => {
-            unlockNext = resolve;
-        });
-
-        const willAcquire = this.mutex.then(() => unlockNext);
-
-        this.mutex = this.mutex.then(() => willUnlock);
-
-        return willAcquire;
-    }
-
-    async dispatch<T>(fn: (() => T | PromiseLike<T>)): Promise<T> {
-        const unlock = await this.lock();
-        try {
-            return await Promise.resolve(fn());
-        } finally {
-            unlock();
-        }
-    }
-}
-
-const fileLock = new Mutex();
 
 export async function appendLog(log: LogEntry): Promise<void> {
-    await fileLock.dispatch(async () => {
-        await ensureDir(); // Ensure main data dir
-        try {
-            await fs.access(LOGS_DIR);
-        } catch {
-            await fs.mkdir(LOGS_DIR, { recursive: true });
-        }
-
-        const today = new Date();
-        const fileName = `Log_${format(today, "yyyy-MM-dd")}.json`;
-        const filePath = path.join(LOGS_DIR, fileName);
-
-        const logs = await readJson<LogEntry[]>(filePath, []);
-        logs.push(log);
-
-        await writeJson(filePath, logs);
-    });
+    await query(`
+        INSERT INTO logs (id, service_id, timestamp, status, latency, message, status_code)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [
+        log.id,
+        log.serviceId,
+        log.timestamp,
+        log.status,
+        log.latency,
+        log.message,
+        log.statusCode
+    ]);
 }
-
-// Incidents
-const INCIDENTS_DIR = path.join(DATA_DIR, "incidents");
-const NOTIFICATIONS_FILE = path.join(DATA_DIR, "notifications.json");
-
-// ... (existing code)
 
 // Notifications
 export async function getNotifications(): Promise<AppNotification[]> {
-    return await readJson<AppNotification[]>(NOTIFICATIONS_FILE, []);
+    const res = await query(`
+        SELECT * FROM notifications ORDER BY timestamp DESC LIMIT 100
+    `);
+
+    return res.rows.map(row => ({
+        id: row.id,
+        serviceId: row.service_id,
+        type: row.type,
+        message: row.message,
+        timestamp: row.timestamp.toISOString(),
+        read: row.is_read
+    }));
 }
 
 export async function saveNotification(notification: AppNotification): Promise<void> {
-    await ensureDir();
-    const notifications = await getNotifications();
-    notifications.unshift(notification); // Add to beginning
-    // Keep only last 100 notifications
-    if (notifications.length > 100) {
-        notifications.length = 100;
-    }
-    await writeJson(NOTIFICATIONS_FILE, notifications);
+    await query(`
+        INSERT INTO notifications (id, service_id, type, message, timestamp, is_read)
+        VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+        notification.id,
+        notification.serviceId,
+        notification.type,
+        notification.message,
+        notification.timestamp,
+        notification.read
+    ]);
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-    await ensureDir();
-    const notifications = await getNotifications();
-    const index = notifications.findIndex(n => n.id === id);
-    if (index !== -1) {
-        notifications[index].read = true;
-        await writeJson(NOTIFICATIONS_FILE, notifications);
-    }
+    await query(`
+        UPDATE notifications SET is_read = true WHERE id = $1
+    `, [id]);
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
-    await ensureDir();
-    const notifications = await getNotifications();
-    const updated = notifications.map(n => ({ ...n, read: true }));
-    await writeJson(NOTIFICATIONS_FILE, updated);
+    await query(`
+        UPDATE notifications SET is_read = true
+    `);
 }
 
+// Incidents
 export async function getIncidents(): Promise<Incident[]> {
-    await ensureDir();
-    try {
-        await fs.access(INCIDENTS_DIR);
-    } catch {
-        // If dir doesn't exist, return empty
-        return [];
-    }
+    const res = await query(`
+        SELECT * FROM incidents ORDER BY start_time DESC
+    `);
 
-    const files = await fs.readdir(INCIDENTS_DIR);
-    const incidentFiles = files.filter(f => f.startsWith("Incident_") && f.endsWith(".json"));
-
-    const incidents: Incident[] = [];
-    for (const file of incidentFiles) {
-        const incident = await readJson<Incident>(path.join(INCIDENTS_DIR, file), {} as Incident);
-        if (incident.id) incidents.push(incident);
-    }
-
-    // Sort by start time descending
-    return incidents.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+    return res.rows.map(row => ({
+        id: row.id,
+        serviceId: row.service_id,
+        startTime: row.start_time.toISOString(),
+        endTime: row.end_time ? row.end_time.toISOString() : undefined,
+        status: row.status,
+        description: row.description,
+        duration: row.duration
+    }));
 }
 
 export async function saveIncident(incident: Incident): Promise<void> {
-    await ensureDir();
-    try {
-        await fs.access(INCIDENTS_DIR);
-    } catch {
-        await fs.mkdir(INCIDENTS_DIR, { recursive: true });
-    }
-
-    const filePath = path.join(INCIDENTS_DIR, `Incident_${incident.id}.json`);
-    await writeJson(filePath, incident);
+    await query(`
+        INSERT INTO incidents (id, service_id, start_time, end_time, status, description, duration)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (id) DO UPDATE SET
+            end_time = EXCLUDED.end_time,
+            status = EXCLUDED.status,
+            description = EXCLUDED.description,
+            duration = EXCLUDED.duration
+    `, [
+        incident.id,
+        incident.serviceId,
+        incident.startTime,
+        incident.endTime,
+        incident.status,
+        incident.description,
+        incident.duration
+    ]);
 }
 
-// Alias for compatibility if needed, but saveIncident is preferred for single updates
 export async function saveIncidents(incidents: Incident[]): Promise<void> {
     for (const incident of incidents) {
         await saveIncident(incident);
@@ -229,86 +214,174 @@ export async function saveIncidents(incidents: Incident[]): Promise<void> {
 
 // Optimization Helpers
 export async function getLatestLogs(limitPerService: number = 24): Promise<LogEntry[]> {
-    // Read only today and yesterday to minimize IO
-    const logs: LogEntry[] = [];
-    const today = new Date();
-    const range = [0, 1]; // Today and Yesterday
+    // Use window function to get recent logs for each service
+    const res = await query(`
+        WITH RankedLogs AS (
+            SELECT *,
+                ROW_NUMBER() OVER (PARTITION BY service_id ORDER BY timestamp DESC) as rn
+            FROM logs
+            WHERE timestamp >= NOW() - INTERVAL '2 days'
+        )
+        SELECT * FROM RankedLogs WHERE rn <= $1 ORDER BY timestamp ASC
+    `, [limitPerService]);
 
-    for (const i of range) {
-        const date = subDays(today, i);
-        const fileName = `Log_${format(date, "yyyy-MM-dd")}.json`;
-        const filePath = path.join(LOGS_DIR, fileName);
-        const dayLogs = await readJson<LogEntry[]>(filePath, []);
-        logs.push(...dayLogs);
-    }
-
-    // Sort by timestamp desc
-    logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-    // Group by service and take top N
-    const relevantLogs: LogEntry[] = [];
-    const services = await getServices();
-
-    for (const service of services) {
-        const serviceLogs = logs.filter(l => l.serviceId === service.id).slice(0, limitPerService);
-        relevantLogs.push(...serviceLogs);
-    }
-
-    // Return chronological order for charts
-    return relevantLogs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return res.rows.map(row => ({
+        id: row.id,
+        serviceId: row.service_id,
+        timestamp: row.timestamp.toISOString(),
+        status: row.status,
+        latency: row.latency,
+        message: row.message,
+        statusCode: row.status_code
+    }));
 }
-
-import { calculateUptime, getAverageResponseTime } from "./statistics";
 
 // Statistics
 export async function getStats(): Promise<ServiceStats> {
-    return await readJson<ServiceStats>(STATS_FILE, {});
+    // Reconstruct the ServiceStats object from DB
+    // This might be expensive if lots of data, but we filter by recent 30 days usually in frontend logic
+    // But the type signature implies returning EVERYTHING.
+    // For now, let's fetch last 90 days.
+
+    const res = await query(`
+        SELECT * FROM daily_stats 
+        WHERE date >= CURRENT_DATE - INTERVAL '90 days'
+        ORDER BY date ASC
+    `);
+
+    const stats: ServiceStats = {};
+
+    for (const row of res.rows) {
+        const serviceId = row.service_id;
+        const dateStr = format(row.date, "yyyy-MM-dd");
+
+        if (!stats[serviceId]) {
+            stats[serviceId] = { days: {} };
+        }
+
+        stats[serviceId].days[dateStr] = {
+            date: dateStr,
+            up: row.up_count,
+            down: row.down_count,
+            degraded: row.degraded_count,
+            totalLatency: parseInt(row.total_latency),
+            count: row.total_count
+        };
+    }
+
+    return stats;
 }
 
 export async function saveStats(stats: ServiceStats): Promise<void> {
-    await ensureDir();
-    await writeJson(STATS_FILE, stats);
+    // This is called by monitor.ts to save ALL stats. 
+    // But monitor.ts usually updates just one day for one service in a loop (conceptually),
+    // but the actual code passes the WHOLE object.
+
+    // Efficiency Note: This is bad pattern for DB. We should expose `updateDailyStat` instead.
+    // But to match interface, we iterate.
+
+    // However, the caller `monitor.ts` has been refactored in my mind to update incrementally.
+    // If we look at `scripts/monitor.ts`, it calls `saveStats(allStats)`.
+    // We should refactor `monitor.ts` to NOT load all stats and save all stats.
+
+    // For now, to be safe and compatible without changing `monitor.ts` logic too much yet (or if we do),
+    // we should implementation `saveStats` to upsert.
+    // BUT `monitor.ts` fetches `getStats` then adds one, then `saveStats`.
+    // We should optimized this.
+
+    // Let's implement a smarter way.
+    // We will assume `stats` object contains the latest state.
+    // We will iterate and upsert. THIS IS VERY HEAVY.
+
+    // Better approach: Since we are going to update `monitor.ts` anyway, 
+    // let's export a specialized function `incrementDailyStat` and use that in `monitor.ts`.
+    // But we must stick to the signature of `saveStats` for now if other parts use it.
+    // Actually, only `monitor.ts` uses `saveStats`.
+
+    for (const serviceId of Object.keys(stats)) {
+        const serviceStats = stats[serviceId];
+        for (const date of Object.keys(serviceStats.days)) {
+            const dayStat = serviceStats.days[date];
+            await query(`
+                INSERT INTO daily_stats (service_id, date, up_count, down_count, degraded_count, total_latency, total_count)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (service_id, date) DO UPDATE SET
+                    up_count = EXCLUDED.up_count,
+                    down_count = EXCLUDED.down_count,
+                    degraded_count = EXCLUDED.degraded_count,
+                    total_latency = EXCLUDED.total_latency,
+                    total_count = EXCLUDED.total_count
+            `, [
+                serviceId,
+                dayStat.date,
+                dayStat.up,
+                dayStat.down,
+                dayStat.degraded,
+                dayStat.totalLatency,
+                dayStat.count
+            ]);
+        }
+    }
 }
 
 export async function getServiceStats(): Promise<Record<string, { uptime: number; avgLatency: number }>> {
-    const stats = await getStats();
+    const res = await query(`
+        SELECT 
+            service_id,
+            SUM(up_count) as total_up,
+            SUM(total_count) as total_checks,
+            SUM(total_latency) as total_latency_sum,
+            SUM(CASE WHEN total_count > 0 THEN total_count ELSE 0 END) as latency_count 
+        FROM daily_stats
+        WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY service_id
+    `);
+
     const result: Record<string, { uptime: number; avgLatency: number }> = {};
     const services = await getServices();
 
-    // Loop through 30 days
-    const now = new Date();
-    const daysToCheck: string[] = [];
-    for (let i = 0; i < 30; i++) {
-        daysToCheck.push(format(subDays(now, i), "yyyy-MM-dd"));
+    // Initialize all with 100% uptime (default)
+    for (const service of services) {
+        result[service.id] = { uptime: 100, avgLatency: 0 };
     }
 
-    for (const service of services) {
-        const serviceStats = stats[service.id];
-        if (!serviceStats || !serviceStats.days) {
-            result[service.id] = { uptime: 100, avgLatency: 0 };
-            continue;
-        }
-
-        let totalUp = 0;
-        let totalChecks = 0;
-        let totalLatency = 0;
-        let latencyCount = 0;
-
-        for (const date of daysToCheck) {
-            const dayStat = serviceStats.days[date];
-            if (dayStat) {
-                totalUp += dayStat.up;
-                totalChecks += dayStat.count;
-                totalLatency += dayStat.totalLatency;
-                latencyCount += dayStat.count; // Assuming every check has latency, otherwise track separately
-            }
-        }
+    for (const row of res.rows) {
+        const totalChecks = parseInt(row.total_checks);
+        const totalUp = parseInt(row.total_up);
+        const totalLatency = parseInt(row.total_latency_sum);
 
         const uptime = totalChecks > 0 ? (totalUp / totalChecks) * 100 : 100;
-        const avgLatency = latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0;
+        const avgLatency = totalChecks > 0 ? Math.round(totalLatency / totalChecks) : 0;
 
-        result[service.id] = { uptime, avgLatency };
+        result[row.service_id] = { uptime, avgLatency };
     }
 
     return result;
 }
+
+// New helper for monitor to avoid full fetch-save cycle
+export async function updateDailyStat(
+    serviceId: string,
+    date: string,
+    increment: { up: number, down: number, degraded: number, latency: number, count: number }
+): Promise<void> {
+    await query(`
+        INSERT INTO daily_stats (service_id, date, up_count, down_count, degraded_count, total_latency, total_count)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (service_id, date) DO UPDATE SET
+            up_count = daily_stats.up_count + EXCLUDED.up_count,
+            down_count = daily_stats.down_count + EXCLUDED.down_count,
+            degraded_count = daily_stats.degraded_count + EXCLUDED.degraded_count,
+            total_latency = daily_stats.total_latency + EXCLUDED.total_latency,
+            total_count = daily_stats.total_count + EXCLUDED.total_count
+    `, [
+        serviceId,
+        date,
+        increment.up,
+        increment.down,
+        increment.degraded,
+        increment.latency,
+        increment.count
+    ]);
+}
+

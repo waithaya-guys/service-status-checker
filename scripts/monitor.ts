@@ -1,5 +1,5 @@
 import { Service, LogEntry, Incident, AppNotification } from "../types/monitoring";
-import { getServices, appendLog, getIncidents, saveIncident, saveNotification, getStats, saveStats } from "../lib/storage";
+import { getServices, appendLog, getIncidents, saveIncident, saveNotification, updateDailyStat } from "../lib/storage";
 import { format } from "date-fns";
 import { checkHttp, checkPing, checkPostgres, checkOracle, checkTcp } from "../lib/checker";
 import dotenv from "dotenv";
@@ -183,32 +183,16 @@ async function performCheck(service: Service) {
         // Update Daily Stats
         try {
             const todayDate = format(now, "yyyy-MM-dd");
-            const allStats = await getStats();
+            const increment = {
+                up: currentStatus === "UP" ? 1 : 0,
+                down: currentStatus === "DOWN" ? 1 : 0,
+                degraded: currentStatus === "DEGRADED" ? 1 : 0,
+                latency: result.latency || 0,
+                count: 1
+            };
 
-            if (!allStats[service.id]) {
-                allStats[service.id] = { days: {} };
-            }
+            await updateDailyStat(service.id, todayDate, increment);
 
-            if (!allStats[service.id].days[todayDate]) {
-                allStats[service.id].days[todayDate] = {
-                    date: todayDate,
-                    up: 0,
-                    down: 0,
-                    degraded: 0,
-                    totalLatency: 0,
-                    count: 0
-                };
-            }
-
-            const dayStat = allStats[service.id].days[todayDate];
-            dayStat.count++;
-            dayStat.totalLatency += (result.latency || 0);
-
-            if (currentStatus === "UP") dayStat.up++;
-            else if (currentStatus === "DOWN") dayStat.down++;
-            else if (currentStatus === "DEGRADED") dayStat.degraded++;
-
-            await saveStats(allStats);
         } catch (err) {
             console.error("Failed to update stats:", err);
         }
