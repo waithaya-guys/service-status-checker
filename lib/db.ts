@@ -5,11 +5,13 @@ let pool: Pool;
 function getPool() {
     if (!pool) {
         const isProduction = process.env.NODE_ENV === 'production';
-        const isLocalhost = process.env.DATABASE_URL?.includes('localhost') || process.env.DATABASE_URL?.includes('127.0.0.1');
+        const isLocalhost = process.env.DATABASE_URL?.includes('localhost') ||
+            process.env.DATABASE_URL?.includes('127.0.0.1') ||
+            process.env.DATABASE_URL?.includes('host.docker.internal');
 
         pool = new Pool({
             connectionString: process.env.DATABASE_URL,
-            ssl: (isProduction && !isLocalhost) ? { rejectUnauthorized: false } : undefined,
+            ssl: (false) ? { rejectUnauthorized: false } : undefined,
         });
     }
     return pool;
