@@ -1,0 +1,34 @@
+services:
+  app:
+    container_name: service-status-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: service-status-app:production
+    restart: unless-stopped
+    ports:
+      - "8108:8108"
+    env_file:
+      - .env.production
+    environment:
+      - NODE_ENV=production
+    # Security: Run as non-root user (already defined in Dockerfile as 'nextjs')
+    # Optimization: Read-only root filesystem to prevent runtime modifications, 
+    # except for necessary temporary directories.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+    # Healthcheck to ensure the service is actually ready to accept traffic
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8108/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Logging configuration to prevent unlimited log file growth
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
