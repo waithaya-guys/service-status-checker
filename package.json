@@ -7,6 +7,7 @@
     "dev:web": "next dev --turbopack",
     "dev:monitor": "npx ts-node --project tsconfig.scripts.json scripts/monitor.ts",
     "build": "next build",
+    "build:monitor": "tsc --project tsconfig.monitor.json",
     "start": "next start",
     "prod": "concurrently \"next start\" \"npm run dev:monitor\"",
     "test:web": "next start",

@@ -6,9 +6,9 @@
 -- - data/notifications.json
 -- - data/stats.json
 
--- Ensure uat schema exists and is used
-CREATE SCHEMA IF NOT EXISTS uat;
-SET search_path TO uat;
+-- Ensure prod schema exists and is used
+--CREATE SCHEMA IF NOT EXISTS prod;
+--SET search_path TO prod;
 
 -- Enable UUID extension if not already enabled
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
