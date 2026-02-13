@@ -1,6 +1,8 @@
 import { getServices, getLatestLogs, getIncidents, getServiceStats } from "@/lib/storage";
 import { DashboardClient } from "@/components/dashboard-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   // Parallel Fetching for Perfromance
   const [services, logs, incidents, stats] = await Promise.all([
