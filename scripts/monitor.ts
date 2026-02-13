@@ -173,7 +173,7 @@ async function performCheck(service: Service) {
             serviceId: service.id,
             timestamp: now.toISOString(),
             status: currentStatus,
-            latency: Math.round(result.latency || 0),
+            latency: result.latency || 0,
             statusCode: result.statusCode,
             message: result.message,
         };
@@ -187,7 +187,7 @@ async function performCheck(service: Service) {
                 up: currentStatus === "UP" ? 1 : 0,
                 down: currentStatus === "DOWN" ? 1 : 0,
                 degraded: currentStatus === "DEGRADED" ? 1 : 0,
-                latency: Math.round(result.latency || 0),
+                latency: result.latency || 0,
                 count: 1
             };
 
