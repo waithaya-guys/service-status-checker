@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS services (
     payload TEXT,
     "interval" INTEGER NOT NULL DEFAULT 60, -- Interval in seconds
     timeout INTEGER NOT NULL DEFAULT 5000, -- Timeout in milliseconds
-    latency_threshold INTEGER, -- Threshold in milliseconds for degraded status
+    latency_threshold DOUBLE PRECISION, -- Threshold in milliseconds for degraded status
     is_public BOOLEAN DEFAULT true,
     show_target BOOLEAN DEFAULT false,
     allow_unauthorized BOOLEAN DEFAULT false,
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS logs (
     -- Actually, referencing from partitioned table IS supported in newer PG versions.
     "timestamp" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(50) NOT NULL, -- 'UP', 'DOWN', 'DEGRADED'
-    latency INTEGER, -- Latency in milliseconds
+    latency DOUBLE PRECISION, -- Latency in milliseconds
     message TEXT,
     status_code INTEGER,
     PRIMARY KEY (id, "timestamp") -- Partition key must be part of PK
@@ -157,7 +157,7 @@ CREATE TABLE IF NOT EXISTS daily_stats (
     up_count INTEGER DEFAULT 0,
     down_count INTEGER DEFAULT 0,
     degraded_count INTEGER DEFAULT 0,
-    total_latency BIGINT DEFAULT 0,
+    total_latency DOUBLE PRECISION DEFAULT 0,
     total_count INTEGER DEFAULT 0,
     PRIMARY KEY (service_id, date)
 );
