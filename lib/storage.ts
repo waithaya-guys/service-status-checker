@@ -100,6 +100,25 @@ export async function getLogsDangerously(): Promise<LogEntry[]> {
     })).reverse(); // Return oldest to newest to match previous behavior if expected
 }
 
+export async function getServiceLogs(serviceId: string, days: number = 30): Promise<LogEntry[]> {
+    const res = await query(`
+        SELECT * FROM logs 
+        WHERE service_id = $1 
+        AND timestamp >= NOW() - INTERVAL '${days} days'
+        ORDER BY timestamp ASC
+    `, [serviceId]);
+
+    return res.rows.map(row => ({
+        id: row.id,
+        serviceId: row.service_id,
+        timestamp: row.timestamp.toISOString(),
+        status: row.status,
+        latency: row.latency,
+        message: row.message,
+        statusCode: row.status_code
+    }));
+}
+
 export async function getRecentLogs(hours: number = 24): Promise<LogEntry[]> {
     const res = await query(`
         SELECT * FROM logs 
