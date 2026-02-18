@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLogsDangerously } from "@/lib/storage";
+import { getLogsDangerously, getServiceLogs } from "@/lib/storage";
 
 export const dynamic = 'force-dynamic';
 
@@ -7,12 +7,11 @@ export async function GET(req: NextRequest) {
     const searchParams = req.nextUrl.searchParams;
     const serviceId = searchParams.get("serviceId");
 
-    const allLogs = await getLogsDangerously();
-
     if (serviceId) {
-        const serviceLogs = allLogs.filter(l => l.serviceId === serviceId);
+        const serviceLogs = await getServiceLogs(serviceId);
         return NextResponse.json(serviceLogs);
     }
 
+    const allLogs = await getLogsDangerously();
     return NextResponse.json(allLogs);
 }
